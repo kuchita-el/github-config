@@ -1,4 +1,4 @@
-# infra-config
+# github-config
 
 Terraform で個人アカウントの GitHub リポジトリ設定（branch protection 等）を IaC 管理する基盤。
 
