@@ -1,0 +1,33 @@
+# Terraform standard ignores
+# https://github.com/github/gitignore/blob/main/Terraform.gitignore
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files (state lives in HCP Terraform, never commit local state)
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Files that may contain secrets — do NOT commit.
+# Note: terraform.tfvars in this repo holds only public values (owner / repo names /
+# CI check names) and IS committed intentionally. Secrets (PAT) live only in the
+# HCP Terraform workspace as a sensitive variable.
+*.auto.tfvars
+*.auto.tfvars.json
+secrets.tfvars
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Override files (local-only overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Note: .terraform.lock.hcl is intentionally committed (provider version pinning).
