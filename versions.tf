@@ -16,7 +16,7 @@ terraform {
     organization = "REPLACE_WITH_YOUR_HCP_ORG"
 
     workspaces {
-      name = "infra-config"
+      name = "github-config"
     }
   }
 }

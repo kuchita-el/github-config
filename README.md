@@ -1,4 +1,4 @@
-# infra-config
+# github-config
 
 個人アカウントの GitHub リポジトリ設定（branch protection 等）を **Terraform で宣言的に管理**する基盤。
 
@@ -62,7 +62,7 @@ terraform version   # >= 1.6 であること
 2. **Organization** を作成（名前は任意。例: `kuchita-el`）。← この名前を後で `versions.tf` に記入する。
 3. **Workspace** を作成:
    - Type: **CLI-Driven Workflow** を選択
-   - 名前: `infra-config`（`versions.tf` の `workspaces { name = ... }` と一致させる）
+   - 名前: `github-config`（`versions.tf` の `workspaces { name = ... }` と一致させる）
 4. 作成した Workspace の **Settings → General** で **Execution Mode = Remote** を確認（既定で Remote）。
 
 ### 3. GitHub fine-grained PAT の発行
