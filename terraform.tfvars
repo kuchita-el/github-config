@@ -19,4 +19,11 @@ repositories = {
   # (which was enforcement=disabled) to the base preset. No CI → no contexts.
   # Imported via a temporary import {} block, then converged. See README.
   "claude-shared-skills" = {}
+
+  # dependabot-triage-action: public-ized for #4 (was private). No pre-existing
+  # ruleset → fresh apply. CI job "build" required.
+  "dependabot-triage-action" = {
+    status_check_contexts       = ["build"]
+    status_check_integration_id = 15368 # GitHub Actions
+  }
 }
