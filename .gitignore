@@ -20,6 +20,11 @@ crash.*.log
 *.auto.tfvars.json
 secrets.tfvars
 
+# GitHub App private key. The PEM contents live only in the HCP workspace as a
+# sensitive env var (GITHUB_APP_PEM_FILE); never commit the key file. Local guard
+# in addition to GitHub push protection.
+*.pem
+
 # CLI configuration files
 .terraformrc
 terraform.rc
