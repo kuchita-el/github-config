@@ -6,7 +6,7 @@
 
 - **state / 実行**: HCP Terraform（旧 Terraform Cloud）無料tier、Remote 実行
 - **provider**: `integrations/github` `~> 6.0`
-- **認証**: fine-grained PAT（将来 GitHub App へ移行予定）
+- **認証**: GitHub App installation（Selected repositories、権限は Administration: Read and write + Metadata: Read のみ）
 - **最初の設定種別**: branch protection（Repository Ruleset）
 
 ---
@@ -23,13 +23,13 @@ locals.tf  base_branch_protection(全リポ共通の既定) + coalesce で overr
 branch_protection.tf  github_repository_ruleset を for_each でリポ単位に展開
         │
         ▼
-GitHub API (PAT 認証)        state ⇄ HCP Terraform workspace
+GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 ```
 
 | ファイル | 役割 |
 |---|---|
 | `versions.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
-| `providers.tf` | GitHub provider（owner のみ。token は環境変数） |
+| `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
 | `locals.tf` | ベース設定とリポ別 override の合成ロジック |
 | `branch_protection.tf` | Ruleset リソース（`for_each` 展開） |
@@ -65,23 +65,35 @@ terraform version   # >= 1.6 であること
    - 名前: `github-config`（`versions.tf` の `workspaces { name = ... }` と一致させる）
 4. 作成した Workspace の **Settings → General** で **Execution Mode = Remote** を確認（既定で Remote）。
 
-### 3. GitHub fine-grained PAT の発行
+### 3. GitHub App の作成・インストール・秘密鍵の生成
 
-1. GitHub → Settings → Developer settings → **Fine-grained tokens** → Generate new token。
-2. **Repository access**: 管理対象リポ（まずは `gachanuma`）を選択。
-3. **Permissions → Repository permissions → Administration: Read and Write**（Ruleset 操作に必須）。
-4. 有効期限を設定し、発行されたトークン（`github_pat_...`）を控える。
+> PAT ではなく GitHub App で認証する。期限管理・人依存を避け、権限を最小化するため。
 
-### 4. PAT を HCP Workspace の秘密変数として登録
+1. GitHub → Settings → Developer settings → **GitHub Apps** → New GitHub App。
+   - 名前は任意（例: `kuchita-el-github-config`）。Homepage URL はダミー可。Webhook は **Active を OFF**。
+2. **Permissions → Repository permissions**:
+   - **Administration: Read and write**（Ruleset 操作に必須）
+   - **Metadata: Read**（他権限付与時に自動で必須化される）
+   - 他は **No access**。特に **Contents は付与しない**（漏洩時もコード改竄を構造的に遮断）。
+   - ラベル管理（Issue #5）着手時に **Issues: Read and write** を増分追加する。
+3. App を作成後、**Install App** で自分のアカウントにインストール。
+   - **Only select repositories** を選び、**管理対象リポのみ**（現状 `gachanuma` / `github-config`）を指定。クレデンシャル到達範囲を管理対象セットに一致させる。
+4. App 設定画面で **App ID** を控える。**Private keys → Generate a private key** で PEM をダウンロードして控える。
+5. インストール画面の URL（`.../installations/<数字>`）等から **Installation ID** を控える。
 
-Workspace → **Variables** → Add variable:
+控える3点: **App ID** / **Installation ID** / **PEM の内容**。PEM はリポジトリに置かない（`.gitignore` で `*.pem` を除外済、push protection も有効）。
 
-- Category: **Environment variable**
-- Key: `GITHUB_TOKEN`
-- Value: 手順3の PAT
-- **Sensitive: ON**（必須。値がログ・state に出ない）
+### 4. App 認証情報を HCP Workspace の秘密変数として登録
 
-> Remote 実行では HCP がこの env var を provider に注入する。ローカルに秘密を置かない。
+Workspace → **Variables** → 以下3つを **Environment variable** で追加（いずれも **Sensitive: ON**）:
+
+| Key | Value |
+|---|---|
+| `GITHUB_APP_ID` | 手順3の App ID |
+| `GITHUB_APP_INSTALLATION_ID` | 手順3の Installation ID |
+| `GITHUB_APP_PEM_FILE` | 手順3の PEM の**内容**（パスではない。複数行は `\n` で表現可） |
+
+> Remote 実行では HCP がこれらを provider に注入し、provider が短命の installation token を生成する。`providers.tf` の空 `app_auth {}` ブロックがこの env var 読み取りを有効化する。ローカルに秘密を置かない。
 
 ### 5. organization 名を記入
 
@@ -171,11 +183,17 @@ terraform apply        # 適用
 
 | 症状 | 原因・対処 |
 |---|---|
-| `403 Resource not accessible by personal access token` | PAT に対象リポの **Administration: Read and Write** が無い。手順3を見直す |
+| `403 Resource not accessible by integration` | App に対象リポの **Administration: Read and write** が無い、対象リポが **インストール対象に含まれていない**、または provider の `owner` 未設定。手順3（権限・Selected repositories）を見直す |
 | `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`locals.tf` を実態へ寄せる |
 | provider のスキーマエラー | provider バージョン差異。`~> 6.0` 固定と `.terraform.lock.hcl` のコミットを確認 |
-| `Error: Required token could not be found` | `GITHUB_TOKEN`（Sensitive env var）が HCP workspace に未登録。手順4を見直す |
+| `Error: Required token could not be found` 等の認証エラー | App 変数3本（`GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE`）が HCP workspace に未登録、または `providers.tf` の `app_auth {}` ブロック欠落。手順4を見直す |
+| ローカル `terraform validate` で `app_auth` の `installation_id is required` | App 認証情報は環境変数から解決されるため、ローカル validate には `GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE` の export が必要（Remote 実行では HCP が注入するので不要） |
 | ローカルに `terraform.tfstate` ができる | `cloud {}` が効いていない。`versions.tf` の organization/workspace 名と `terraform init` を確認 |
+
+### PAT → App 切替・ロールバック
+
+- **切替順序**（二重認証を避ける）: ①App 変数3本を HCP に追加 → ②`app_auth {}` を含むコードを main へ反映 → ③`terraform plan`/`apply` 成功を確認 → ④その後に PAT 変数 `GITHUB_TOKEN` を削除し、GitHub 側の旧 PAT を revoke。PAT 削除は最後に遅延させロールバック余地を残す。
+- **ロールバック**: App 認証で plan/apply が失敗したら、HCP に `GITHUB_TOKEN`（PAT）を再追加し `providers.tf` の `app_auth {}` を revert する。provider は token 環境変数へフォールバックする。
 
 ---
 
@@ -183,5 +201,4 @@ terraform apply        # 適用
 
 - merge settings / labels / dependabot 等の追加設定種別
 - `plan` 定期実行による drift 検出の CI 自動化
-- GitHub App への認証移行
 - 複数 Org への展開
