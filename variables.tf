@@ -32,4 +32,14 @@ variable "repositories" {
     strict_required_status_checks_policy = optional(bool)
     do_not_enforce_on_create             = optional(bool)
   }))
+
+  # Enforce: if a repo declares status check contexts, it must also declare the
+  # integration_id (otherwise null is passed to required_check.integration_id).
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      length(r.status_check_contexts) == 0 || r.status_check_integration_id != null
+    ])
+    error_message = "status_check_integration_id is required when status_check_contexts is non-empty."
+  }
 }
