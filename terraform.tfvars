@@ -14,4 +14,9 @@ repositories = {
   # github-config: self-governance (dogfooding). No CI yet (#8), so no status
   # check contexts — base branch protection only. Add contexts once #8 lands.
   "github-config" = {}
+
+  # claude-shared-skills: onboarded by standardizing its pre-existing ruleset
+  # (which was enforcement=disabled) to the base preset. No CI → no contexts.
+  # Imported via a temporary import {} block, then converged. See README.
+  "claude-shared-skills" = {}
 }
