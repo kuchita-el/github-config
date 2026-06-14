@@ -10,10 +10,8 @@ terraform {
   }
 
   # Remote state + remote execution on HCP Terraform (formerly Terraform Cloud), free tier.
-  # TODO(setup): replace the organization below with your HCP Terraform organization name.
-  # See README.md "初期セットアップ" for how to create the org and workspace.
   cloud {
-    organization = "REPLACE_WITH_YOUR_HCP_ORG"
+    organization = "kuchita-el"
 
     workspaces {
       name = "github-config"
