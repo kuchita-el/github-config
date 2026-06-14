@@ -102,22 +102,31 @@ terraform validate     # 構文・スキーマ検証
 
 > 既に Ruleset が存在するリポを管理下に入れる手順。**新規作成（上書き）事故を防ぐ核心。**
 
+> ⚠️ **Remote 実行では CLI の `terraform import` コマンドは使えない。** config-driven
+> import（`import {}` ブロック）を使い、plan/apply 経由で取り込む。
+
 1. 対象リポの既存 Ruleset ID を調べる:
    ```bash
    gh api repos/<owner>/<repo>/rulesets --jq '.[] | {id, name}'
    ```
 2. `terraform.tfvars` の `repositories` に対象リポを追加（status check contexts 等を実態に合わせる）。
-3. import する（アドレスは `for_each` キー＝リポ名）:
-   ```bash
-   terraform import 'github_repository_ruleset.branch_protection["<repo>"]' '<repo>:<ruleset_id>'
-   # 例: terraform import 'github_repository_ruleset.branch_protection["gachanuma"]' 'gachanuma:16492768'
+3. import ブロックを一時的に追加する（`import.tf` を作成。アドレスは `for_each` キー＝リポ名）:
+   ```hcl
+   import {
+     to = github_repository_ruleset.branch_protection["<repo>"]
+     id = "<repo>:<ruleset_id>"
+   }
+   # 例: id = "gachanuma:16492768"
    ```
-4. **`terraform plan` が `No changes.` になるまで** `terraform.tfvars` / `locals.tf` を実態へ寄せる。
+4. `terraform plan` を実行し、**`0 to add, 0 to change, 0 to destroy`（import のみ）** になるまで
+   `terraform.tfvars` / `locals.tf` を実態へ寄せる。
    差分が出やすい箇所: `allowed_merge_methods` の順序、`required_check` の集合、`integration_id` の有無、`enforcement`。
    ```
-   No changes. Your infrastructure matches the configuration.
+   Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
    ```
-5. no-op を確認できたら `terraform apply`（実質変更なし＝安全に管理下入り）。
+5. no-op を確認できたら `terraform apply`（state に取り込むだけ＝実 Ruleset は無変更で安全に管理下入り）。
+6. 取り込み完了後、追加した `import {}` ブロックを削除する（state に入った後は不要）。`plan` が
+   `No changes` のままであることを確認。
 
 ---
 
