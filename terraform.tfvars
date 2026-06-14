@@ -10,4 +10,8 @@ repositories = {
     status_check_contexts       = ["lint", "typecheck", "test", "build", "e2e"]
     status_check_integration_id = 15368 # GitHub Actions
   }
+
+  # github-config: self-governance (dogfooding). No CI yet (#8), so no status
+  # check contexts — base branch protection only. Add contexts once #8 lands.
+  "github-config" = {}
 }
