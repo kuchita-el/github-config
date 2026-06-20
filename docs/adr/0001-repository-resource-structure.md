@@ -39,11 +39,13 @@
 - 動機軸ごとの base preset は **locals で2ファイルに分割**する。
   - セキュリティ系（#16）: `repository_security.tf` に `local.repository_security_preset` を定義
   - 開発プロセス系（#17）: `repository_process.tf` に `local.repository_process_preset` を定義
-- `repository.tf` の resource ブロックは両 locals を `merge()` で合成し、per-repo override（`var.repositories` 経由）を上書きする形で属性を埋める。
+- `repository.tf` の resource ブロックは両 locals を `merge()` で合成し、per-repo override（`var.repositories` 経由）を上書きする形で属性を埋める。`visibility` は base preset に含めず per-repo 必須宣言とする（影響セクション #16 参照）。
 - ファイルレイアウト（イメージ）:
-  - `repository.tf`: `resource "github_repository" "this" { for_each = ... }`（属性は locals 合成で埋まる）
-  - `repository_security.tf`: `locals { repository_security_preset = { visibility = ..., archived = ..., allow_auto_merge = ..., has_wiki = ..., has_projects = ..., has_discussions = ... } }`
+  - `repository.tf`: `resource "github_repository" "this" { for_each = var.repositories }`（属性は locals 合成で埋まる）
+  - `repository_security.tf`: `locals { repository_security_preset = { archived = ..., allow_auto_merge = ..., has_wiki = ..., has_projects = ..., has_discussions = ... } }`（`visibility` は含めない）
   - `repository_process.tf`: `locals { repository_process_preset = { allow_squash_merge = ..., allow_merge_commit = ..., allow_rebase_merge = ..., delete_branch_on_merge = ..., default_branch = ..., description = ..., homepage = ..., topics = ..., has_issues = ... } }`
+- **`merge()` 合成と null 処理**: per-repo override (`var.repositories[each.key]`) は optional フィールドの未指定要素が `null` として入る map になる。`merge()` は後勝ちで `null` も採用するため、未指定 override が base preset 値を `null` で上書きしてしまう。これを避けるため、`merge()` に渡す前に **null フィールドを除去**する。例: `merge(local.repository_security_preset, local.repository_process_preset, { for k, v in var.repositories[each.key] : k => v if v != null })`。`visibility` のみ「必須」として `var.repositories[each.key].visibility` を resource ブロックで直接指定する。
+- **既存 `locals.tf` パターンとの整合**: 既存の `branch_protection` は `ovr.X != null ? ovr.X : base.X` のセレクター式で属性ごとにガードしている。本構造はリポジトリ属性が15個と多く、セレクター式で書くと冗長になるため `merge()` + null 除去パターンを採用する。型安全性は `variables.tf` の optional 型定義で担保する。
 - 既存の `branch_protection.tf` は「1ファイル=1リソース種別」のパターンだが、本構造は「1リソース種別を動機軸ごとに preset 分割し、resource ブロックは別ファイルに集約」というパターン。既存パターンの単純な踏襲ではなく、動機軸の SoT 可視化を優先した独自パターンである旨を明記する。
 
 ### 2. `topics` の SoT 化方針: `github_repository.topics` 属性で管理
@@ -100,6 +102,7 @@
 ### 案 B（旧、不採用）: resource ブロックを2ファイルに分割
 
 - **採用しなかった理由**: Terraform は同一アドレス（`github_repository.this`）の resource ブロックを複数ファイルに分割することを許さない（重複定義エラー）。技術制約上成立しない。本 ADR の元案として検討されたが、レビューで指摘され不採用。
+- **再採用条件**: なし。Terraform の言語仕様が変わらない限り技術的に成立しない。動機軸の SoT 可視化を実現したい場合は案 B'（locals 分割）を採用する。
 
 ### 案 C: 補助リソース分離（`github_repository_topics` 等）
 
@@ -111,13 +114,14 @@
 ### 子Issue #16 / #17 への影響
 
 - **#16 セキュリティ系**:
-  - `repository.tf` を新設し、`resource "github_repository" "this" { for_each = ... }` を定義する。属性値は `merge(local.repository_security_preset, local.repository_process_preset, var.repositories[each.key])` で合成（#16 着手時は `repository_process_preset` が未導入のため空 map か、合成式に含めず後続 PR で追加）。
+  - `repository.tf` を新設し、`resource "github_repository" "this" { for_each = var.repositories }` を定義する。属性値は `merge(local.repository_security_preset, local.repository_process_preset, { for k, v in var.repositories[each.key] : k => v if v != null })` で合成する。
+  - `repository_process.tf` も #16 で空雛形として配置し、`locals { repository_process_preset = {} }` を定義する（#17 で値を埋める）。これにより `repository.tf` の `merge()` 合成式を #16 時点から最終形で書け、#17 では値の追加のみで済む。
   - `repository_security.tf` を新設し、`local.repository_security_preset` を定義する。対象属性: `archived`, `allow_auto_merge`, `has_wiki`, `has_projects`, `has_discussions`。
-  - `visibility` は base preset に含めず per-repo 必須宣言（`var.repositories` 経由で各リポから渡す）。
+  - `visibility` は base preset に含めず per-repo 必須宣言とする。`var.repositories` の `visibility` は型レベルで required（optional ではない）にし、resource ブロックで `visibility = each.value.visibility` のように直接渡す。
   - `repository.tf` の resource ブロック内に `lifecycle { ignore_changes = [visibility, archived] }` を記述する。
 - **#17 開発プロセス系**:
-  - `repository_process.tf` を新設し、`local.repository_process_preset` を定義する。対象属性: `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `delete_branch_on_merge`, `default_branch`, `description`, `homepage`, `topics`, `has_issues`。
-  - `repository.tf` の resource ブロックの属性合成式に `local.repository_process_preset` を追加する（`merge` の引数に追加）。resource ブロック自体は #16 で配置済みのため、#17 では新規作成しない。
+  - `repository_process.tf` の `local.repository_process_preset` に対象属性の値を埋める。対象属性: `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `delete_branch_on_merge`, `default_branch`, `description`, `homepage`, `topics`, `has_issues`。
+  - `repository.tf` の resource ブロック・`merge()` 合成式・`repository_process.tf` のファイル雛形は #16 で配置済みのため、#17 では新規作成・合成式変更は不要（locals 値の追記のみ）。
 - **per-repo override 型定義**: `variables.tf` の `repositories` 型に override 用 optional フィールド3個（`delete_branch_on_merge`, `description`, `has_wiki`）を追加する。`visibility` は型レベルで required にする。
 - **base preset 値**: 付録 A 差分表で「差分なし」の属性は base preset に集約。base 値は4リポの共通値を採用（例: `allow_squash_merge=true`, `default_branch="main"`, `has_issues=true` 等）。
 - **着手順序の制約**: #16 が `repository.tf` の resource ブロックを先に配置するため、#17 は #16 のマージ後に着手する（#16 → #17 の直列依存）。
