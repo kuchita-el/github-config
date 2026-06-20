@@ -33,13 +33,18 @@
 
 ## 決定
 
-### 1. リソース構造: 案 B（リソース1本・ファイル2枚分割）
+### 1. リソース構造: 案 B'（リソース1本・preset を動機軸で locals 分割）
 
-- `github_repository` リソースは Terraform 上1本に集約する（属性は1リソースに集まる）。
-- `*.tf` ファイルはセキュリティ系プリセット（#16）と開発プロセス系プリセット（#17）の2枚に分割する。
-  - セキュリティ系: `repository_security.tf`
-  - 開発プロセス系: `repository_process.tf`
-- 既存の `branch_protection.tf` と命名規則を揃え、リソース種別単位でファイル分割するという既存規範に合わせる。
+- `github_repository` resource ブロックは `repository.tf` 1枚に集約する（Terraform は同一アドレスの resource ブロックを1ファイル内でアトミックに定義する制約があるため、resource ブロック自体は分割しない）。
+- 動機軸ごとの base preset は **locals で2ファイルに分割**する。
+  - セキュリティ系（#16）: `repository_security.tf` に `local.repository_security_preset` を定義
+  - 開発プロセス系（#17）: `repository_process.tf` に `local.repository_process_preset` を定義
+- `repository.tf` の resource ブロックは両 locals を `merge()` で合成し、per-repo override（`var.repositories` 経由）を上書きする形で属性を埋める。
+- ファイルレイアウト（イメージ）:
+  - `repository.tf`: `resource "github_repository" "this" { for_each = ... }`（属性は locals 合成で埋まる）
+  - `repository_security.tf`: `locals { repository_security_preset = { visibility = ..., archived = ..., allow_auto_merge = ..., has_wiki = ..., has_projects = ..., has_discussions = ... } }`
+  - `repository_process.tf`: `locals { repository_process_preset = { allow_squash_merge = ..., allow_merge_commit = ..., allow_rebase_merge = ..., delete_branch_on_merge = ..., default_branch = ..., description = ..., homepage = ..., topics = ..., has_issues = ... } }`
+- 既存の `branch_protection.tf` は「1ファイル=1リソース種別」のパターンだが、本構造は「1リソース種別を動機軸ごとに preset 分割し、resource ブロックは別ファイルに集約」というパターン。既存パターンの単純な踏襲ではなく、動機軸の SoT 可視化を優先した独自パターンである旨を明記する。
 
 ### 2. `topics` の SoT 化方針: `github_repository.topics` 属性で管理
 
@@ -54,13 +59,14 @@
 
 ## 根拠
 
-### 1. リソース構造（案 B 採用）
+### 1. リソース構造（案 B' 採用）
 
-親 Issue #6 が動機軸（セキュリティ vs 開発プロセス）で子Issue #16/#17 を分割している以上、SoT 構造もその軸を反映する方が「なぜこの属性がここに置かれているか」が読みやすい。
+親 Issue #6 が動機軸（セキュリティ vs 開発プロセス）で子Issue #16/#17 を分割している以上、SoT 構造もその軸を反映する方が「なぜこの属性がここに置かれているか」が読みやすい。一方、Terraform は同一 resource ブロックの複数ファイル分割を許さないため、**「resource ブロックは1ファイル集約 + preset を動機軸で locals 分割」**という構造で動機軸の可視化と技術制約を両立させる。
 
-- **既存規範との整合**: 既存の `branch_protection.tf` がリソース種別ごとに `*.tf` 分割している。`github_repository.tf` 単一にすると属性が肥大化し、`#16`/`#17` のスコープ境界がコード上見えなくなる。
-- **動機軸の SoT 上での可視化**: ファイル名が「セキュリティ系設定の SoT は `repository_security.tf`」「開発プロセス系設定の SoT は `repository_process.tf`」を直接示す。`grep` で属性を探す際もスコープが絞れる。
-- **影響範囲の制御**: Terraform 上ではリソース1本なので `terraform plan` / `import` / `state mv` の単位は変わらない。分割によって Terraform 操作のコストは増えない。
+- **動機軸の SoT 上での可視化**: 属性名 `visibility` を変更したい開発者は `repository_security.tf` を、`description` を変更したい開発者は `repository_process.tf` を見ればよい。ファイル名と編集対象が1:1で対応する。`grep` で属性を探す際もスコープが絞れる。
+- **resource ブロック責務の単一化**: `repository.tf` は preset 合成と per-repo override の機械的な合流のみを担い、属性値の「決め」は両 preset ファイルに閉じる。属性追加・変更の差分が動機軸ファイル内に局所化される。
+- **影響範囲の制御**: resource ブロックは1本のため `terraform plan` / `import` / `state mv` の単位は変わらない。分割によって Terraform 操作のコストは増えない。
+- **既存ファイル命名との整合**: `branch_protection.tf` は「1ファイル=1リソース種別（`github_repository_ruleset`）」のパターンだが、本構造は別パターンとなる。動機軸の SoT 可視化を優先した独自パターンであることを ADR で明示し、既存規範の単純な踏襲とは区別する。
 
 ### 2. `topics` 方針（属性管理・`ignore_changes` なし）
 
@@ -70,9 +76,9 @@
 
 ### 3. `ignore_changes` 範囲（最小: `visibility`, `archived`）
 
-- **破壊回避の対象を絞る**: `visibility` の誤上書き（public → private、または private → public）と `archived` の誤上書き（false → true）は復旧コストが極めて高い破壊的変更。これらは Issue #16 が明示的に `ignore_changes` 保護を要求している。
+- **破壊回避の対象を絞る**: `visibility` の誤上書き（public → private、または private → public）は復旧コストが極めて高い破壊的変更（公開状態の急変による外部影響、private 化時のリンク・参照の到達不能等）。`archived` の誤上書き（false → true）は UI/API で巻き戻し可能なため復旧コスト自体は中程度だが、書き込み不能状態への遷移は運用影響が大きい（Issue/PR 作成不可、CI 失敗等）。これらは Issue #16 が明示的に `ignore_changes` 保護を要求している。
 - **SoT 厳格性を優先**: `description` / `homepage` / `topics` 等の運用中変動属性も保護候補だが、保護を増やすほど SoT としての可視性が失われる。UI と Terraform の二重管理を許す方針より、UI からの変更は `terraform plan` で drift として検知される運用を選ぶ。
-- **drift 検知運用**: 現状の drift（例: `claude-shared-skills` の `delete_branch_on_merge=true` が UI 設定由来か Terraform 由来か不明）も、`terraform plan` で可視化されることで運用上扱える状態になる。
+- **drift 検知運用**: 現状 `github_repository` 属性は Terraform 管理外で UI 由来の値がそのまま実態となっている（厳密には drift ではなく未管理状態の現状値。例: `claude-shared-skills` の `delete_branch_on_merge=true` は UI 設定由来）。#16/#17 で管理下に入ると、`description` / `homepage` / `topics` 等の UI 変更は `terraform plan` で drift として可視化され、`apply` で SoT 値へ revert される運用に切り替わる。
 
 ### 4. 現状ダンプから読み取れる事実
 
@@ -88,8 +94,12 @@
 
 ### 案 A: 単一 `*.tf` への集約
 
-- **採用しなかった理由**: `github_repository` 関連属性が15個あり、`branch_protection.tf` と並べたとき1ファイルあたりの行数が肥大化する。属性のスコープ境界（セキュリティ系 vs 開発プロセス系）が SoT 上見えない。
-- **再採用条件**: 子Issue #16/#17 のスコープ境界が将来消滅した場合（例: 1つの動機軸に統合された場合）は案 A に moves する余地がある。Terraform 上はリソース1本のため `moved` ブロックは不要、`*.tf` 間で resource ブロックを引っ越すだけで切り替え可能。
+- **採用しなかった理由**: `github_repository` 関連属性が15個あり、preset を全て1ファイルに書くと属性追加時の動機軸の境界がコード上で見えなくなる。「これはセキュリティ系か開発プロセス系か」を ADR を読み返さないと判断できない。
+- **再採用条件**: 子Issue #16/#17 のスコープ境界が将来消滅した場合（例: 1つの動機軸に統合された場合）は案 A に moves する余地がある。`repository.tf` は resource ブロックのみ・preset は同ファイルに統合、もしくは `repository_security.tf` / `repository_process.tf` を1枚にまとめる。Terraform state は変わらないため `moved` ブロック不要、locals の物理配置を変えるだけで切り替え可能。
+
+### 案 B（旧、不採用）: resource ブロックを2ファイルに分割
+
+- **採用しなかった理由**: Terraform は同一アドレス（`github_repository.this`）の resource ブロックを複数ファイルに分割することを許さない（重複定義エラー）。技術制約上成立しない。本 ADR の元案として検討されたが、レビューで指摘され不採用。
 
 ### 案 C: 補助リソース分離（`github_repository_topics` 等）
 
@@ -100,16 +110,23 @@
 
 ### 子Issue #16 / #17 への影響
 
-- **#16 セキュリティ系**: `repository_security.tf` に `github_repository` リソース本体を配置する。属性: `visibility`（per-repo 必須宣言）, `archived`, `allow_auto_merge`, `has_wiki`, `has_projects`, `has_discussions`。`lifecycle.ignore_changes = [visibility, archived]` をブロック内に記述する。
-- **#17 開発プロセス系**: `repository_process.tf` を新設し、`github_repository` リソース本体の追加属性（マージ系3属性 / `delete_branch_on_merge` / `default_branch` / `description` / `homepage` / `topics` / `has_issues`）を記述する。
+- **#16 セキュリティ系**:
+  - `repository.tf` を新設し、`resource "github_repository" "this" { for_each = ... }` を定義する。属性値は `merge(local.repository_security_preset, local.repository_process_preset, var.repositories[each.key])` で合成（#16 着手時は `repository_process_preset` が未導入のため空 map か、合成式に含めず後続 PR で追加）。
+  - `repository_security.tf` を新設し、`local.repository_security_preset` を定義する。対象属性: `archived`, `allow_auto_merge`, `has_wiki`, `has_projects`, `has_discussions`。
+  - `visibility` は base preset に含めず per-repo 必須宣言（`var.repositories` 経由で各リポから渡す）。
+  - `repository.tf` の resource ブロック内に `lifecycle { ignore_changes = [visibility, archived] }` を記述する。
+- **#17 開発プロセス系**:
+  - `repository_process.tf` を新設し、`local.repository_process_preset` を定義する。対象属性: `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `delete_branch_on_merge`, `default_branch`, `description`, `homepage`, `topics`, `has_issues`。
+  - `repository.tf` の resource ブロックの属性合成式に `local.repository_process_preset` を追加する（`merge` の引数に追加）。resource ブロック自体は #16 で配置済みのため、#17 では新規作成しない。
 - **per-repo override 型定義**: `variables.tf` の `repositories` 型に override 用 optional フィールド3個（`delete_branch_on_merge`, `description`, `has_wiki`）を追加する。`visibility` は型レベルで required にする。
 - **base preset 値**: 付録 A 差分表で「差分なし」の属性は base preset に集約。base 値は4リポの共通値を採用（例: `allow_squash_merge=true`, `default_branch="main"`, `has_issues=true` 等）。
+- **着手順序の制約**: #16 が `repository.tf` の resource ブロックを先に配置するため、#17 は #16 のマージ後に着手する（#16 → #17 の直列依存）。
 
 ### import 戦略への影響
 
 - 4リポは既に GitHub 側で稼働中のため、Terraform `import` → `terraform plan` "No changes" 収束で取り込む（破壊回避）。
 - 4リポすべて差分表（付録 A）の値で `import` 後 base + override を組めば "No changes" になる前提で実装する。
-- `import` 実行順序は #16（`github_repository` リソース本体導入）→ #17（追加属性は同一リソースに対する属性追加なので import 不要）。
+- `import` 実行は #16 で実施（`github_repository` resource ブロック導入時）。#17 は同一 resource への属性追加なので `import` 不要だが、preset 拡張後に `terraform plan` "No changes" を再確認する。
 
 ### 新規リポ追加時の影響
 
@@ -118,8 +135,8 @@
 
 ### ロールバック可能性
 
-- 構造変更（A↔B）: ファイル分割のみのためロールバックは `*.tf` 間で resource ブロックを移動するだけ。Terraform state は変わらない。
-- 構造変更（B↔C）: 補助リソース分離は `moved` ブロック整備 + `terraform state mv` が必要。コストは中程度。
+- 構造変更（A↔B'）: locals の物理配置を変えるだけ（`local.repository_security_preset` / `local.repository_process_preset` を1ファイルに統合 / 分離）。resource ブロックは元から1ファイル集約なので触らない。Terraform state は変わらず `moved` ブロック不要、`terraform plan` "No changes" のまま切り替え可能。
+- 構造変更（B'↔C）: 補助リソース分離は `moved` ブロック整備 + `terraform state mv` が必要。コストは中程度。
 - `topics` 方針の変更（属性管理 → ignore_changes 追加）: `lifecycle.ignore_changes` 追記のみで切り替え可能。低コスト。
 
 ---
@@ -162,8 +179,8 @@
 
 | 属性 | 現状値（全リポ） | 保護理由 |
 |---|---|---|
-| `visibility` | `public` | 誤上書き時の復旧コスト極大（public ⇔ private） |
-| `archived` | `false` | 誤上書きでアーカイブ化（書き込み不可状態）に陥るリスク |
+| `visibility` | `public` | 誤上書き時の復旧コスト極大（public ⇔ private、外部参照への影響） |
+| `archived` | `false` | 書き込み不能状態への遷移（Issue/PR 作成不可・CI 失敗）による運用影響大。巻き戻しは可能だが影響波及が広い |
 
 ---
 
