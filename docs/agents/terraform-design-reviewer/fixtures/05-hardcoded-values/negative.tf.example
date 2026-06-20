@@ -1,0 +1,35 @@
+# Fixture (negative): 15368 を terraform.tfvars 経由で参照。
+# 既存 branch_protection.tf:42 と同様のパターン。
+# 期待: 観点 5 は発火しない。
+
+resource "github_repository_ruleset" "branch_protection" {
+  for_each = local.branch_protection
+
+  name        = each.value.name
+  repository  = each.key
+  target      = each.value.target
+  enforcement = each.value.enforcement
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  rules {
+    dynamic "required_status_checks" {
+      for_each = length(each.value.status_check_contexts) > 0 ? [1] : []
+      content {
+        dynamic "required_check" {
+          for_each = each.value.status_check_contexts
+          content {
+            context = required_check.value
+            # terraform.tfvars 経由で注入された値を属性参照。
+            integration_id = each.value.status_check_integration_id
+          }
+        }
+      }
+    }
+  }
+}

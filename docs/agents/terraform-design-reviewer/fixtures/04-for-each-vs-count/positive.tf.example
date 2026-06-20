@@ -1,0 +1,31 @@
+# Fixture (positive): count = N で複数リソースを生成。
+# 各要素は固有名（リポ名）を持つので for_each が適切。
+# 期待: 観点 4 が warning で発火。
+
+variable "repos" {
+  type    = list(string)
+  default = ["gachanuma", "github-config", "claude-shared-skills"]
+}
+
+resource "github_repository_ruleset" "branch_protection" {
+  # NOTE: count はインデックスベース。リストの先頭・中間要素を削除すると
+  # 後続要素のインデックスが再採番され destroy/recreate される。
+  # リポ名はキーになりうるので for_each = toset(var.repos) を使うべき。
+  count = length(var.repos)
+
+  name        = "main protection"
+  repository  = var.repos[count.index]
+  target      = "branch"
+  enforcement = "active"
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  rules {
+    creation = true
+  }
+}
