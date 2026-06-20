@@ -12,7 +12,7 @@ Issue #20 の AC2/3/4 が要求する「reviewer が観点 X を期待通り blo
   2. 陽性/陰性/境界フィクスチャ
   3. 期待出力 (`expected.md`)
 - **PASS 条件**: 観点 # と重大度の判定が `expected.md` と一致、かつ指摘文言の主旨が意味的に一致
-- **試行回数**: 各ケース 1 回（プランで指定した「最低 2 回」は時間制約により 1 回に縮退。観点 # と重大度の安定性は将来の繰り返し検証で確認する予定。本実装段階では 1 回の判定で reviewer 定義の検出条件と一致することを確認）
+- **試行回数**: 各ケース 1 回。LLM 出力は確率的に変動するため、観点 # と重大度の安定性確認には本来複数回試行が望ましいが、本実装では 1 回試行で reviewer 定義の検出条件と一致することを確認した。複数回試行への拡張は将来の繰り返し検証で行う予定。
 - **代理試験の限界**: 「reviewer 定義テキストに従って評価する LLM の挙動」を測定したものであり、「`terraform-design-reviewer` subagent が実機で同じ挙動を示す」ことの保証ではない。subagent 仕様（frontmatter の `tools` 制限・`name` 解決・`model` 継承等）の効果は未測定。
 
 ## 照合表
@@ -106,8 +106,8 @@ Issue #20 の AC2/3/4 が要求する「reviewer が観点 X を期待通り blo
 
 ## 制限事項
 
-- **試行回数**: プラン記載「各フィクスチャ最低 2 回起動」は本実装では 1 回試行に縮退した。LLM 出力の確率的変動への対処として、観点 # と重大度の安定性は将来の繰り返し検証で確認する。本実装段階では 1 回で観点 # と重大度が reviewer 定義通りに判定されることを確認した。
-- **検証時のサブエージェント種別**: 検証用 subagent は `claude`（汎用）で起動した。`terraform-design-reviewer` 自体を `subagent_type` として直接呼ぶ動作確認は、`.claude/agents/` 配下のプロジェクトローカル subagent 登録規約に依存し、Claude Code のセッション登録タイミングの違いで挙動が変わる可能性があるため別途実機確認とする（プラン §subagent_type 解決方式 参照）。**ToDo**: PR マージ後、Claude Code セッション再起動で `.claude/agents/terraform-design-reviewer.md` が `subagent_type` 候補として認識される確認 → 1 ケースでも実機で `Agent(subagent_type: "terraform-design-reviewer")` 起動結果を本ファイルに追記。別 Issue で追跡してもよい。
+- **試行回数の限界**: 本実装は各フィクスチャ 1 回試行に留めた。LLM 出力の確率的変動への対処として、観点 # と重大度の安定性は将来の繰り返し検証で確認する。本実装段階では 1 回で観点 # と重大度が reviewer 定義通りに判定されることを確認した。
+- **検証時のサブエージェント種別**: 検証用 subagent は `claude`（汎用）で起動した。`terraform-design-reviewer` 自体を `subagent_type` として直接呼ぶ動作確認は、`.claude/agents/` 配下のプロジェクトローカル subagent 登録規約に依存し、Claude Code のセッション登録タイミングの違いで挙動が変わる可能性があるため別途実機確認とする。**ToDo**: PR マージ後、Claude Code セッション再起動で `.claude/agents/terraform-design-reviewer.md` が `subagent_type` 候補として認識される確認 → 1 ケースでも実機で `Agent(subagent_type: "terraform-design-reviewer")` 起動結果を本ファイルに追記。別 Issue で追跡してもよい。
 - **`github_repository` 系の現リポ未実装**: 観点 3 / 観点 6 (A) のフィクスチャは ADR 0001 §1/§3 の仕様から組み立てている。Issue #16/#17 で `github_repository` 実装が入り次第、現リポの実コードを参照する陰性ケースに置換できる。
 
 ## 結論
