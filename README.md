@@ -34,6 +34,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `locals.tf` | ベース設定とリポ別 override の合成ロジック |
 | `branch_protection.tf` | Ruleset リソース（`for_each` 展開） |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
+| `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
 ### 設計思想（重要）
 
