@@ -1,0 +1,29 @@
+# Fixture (positive, A: merge パターン): security preset が欠落 + null 除去欠落。
+# ADR 0001 §1 が定義する merge() 合成パターンから逸脱。
+# 期待: 観点 6 が blocker で発火（A）。
+
+resource "github_repository" "this" {
+  for_each = var.repositories
+
+  name        = each.key
+  visibility  = each.value.visibility
+
+  # NOTE: ADR 0001 §1 が定義する以下のパターンから逸脱:
+  #   merge(
+  #     local.repository_security_preset,
+  #     local.repository_process_preset,
+  #     { for k, v in var.repositories[each.key] : k => v if v != null }
+  #   )
+  #
+  # 逸脱点:
+  # - security_preset が引数から欠落（security 系属性が消える）
+  # - null 除去 comprehension が無く、未指定 override が null で上書きしてしまう
+  description          = lookup(merge(local.repository_process_preset, var.repositories[each.key]), "description", null)
+  homepage             = lookup(merge(local.repository_process_preset, var.repositories[each.key]), "homepage", null)
+  has_issues           = lookup(merge(local.repository_process_preset, var.repositories[each.key]), "has_issues", true)
+  delete_branch_on_merge = lookup(merge(local.repository_process_preset, var.repositories[each.key]), "delete_branch_on_merge", false)
+
+  lifecycle {
+    ignore_changes = [visibility, archived]
+  }
+}

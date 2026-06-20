@@ -1,0 +1,26 @@
+# Fixture (positive, B: 三項演算子パターン): null フォールバック欠落。
+# locals.tf:36-55 の branch_protection パターンに違反。
+# 期待: 観点 6 が blocker で発火（B）。
+
+locals {
+  branch_protection = {
+    for repo, ovr in var.repositories : repo => {
+      name        = local.base_branch_protection.name
+      target      = local.base_branch_protection.target
+
+      # NOTE: フォールバックが無い。ovr.enforcement が null なら null 上書きしてしまう。
+      # 既存 locals.tf:40 のパターンに従い以下に修正すべき:
+      #   enforcement = ovr.enforcement != null ? ovr.enforcement : local.base_branch_protection.enforcement
+      enforcement = ovr.enforcement
+
+      # 同上、要修正
+      required_approving_review_count = ovr.required_approving_review_count
+
+      # その他属性は既存通り。
+      creation            = local.base_branch_protection.creation
+      deletion            = local.base_branch_protection.deletion
+      non_fast_forward    = local.base_branch_protection.non_fast_forward
+      required_signatures = local.base_branch_protection.required_signatures
+    }
+  }
+}

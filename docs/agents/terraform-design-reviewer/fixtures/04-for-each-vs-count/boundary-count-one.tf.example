@@ -1,0 +1,29 @@
+# Fixture (境界・陰性): count = var.enable ? 1 : 0 の条件付き生成。
+# 観点 4 の境界条件「count = 1 は指摘しない」。
+# 期待: 観点 4 は発火しない。
+
+variable "enable_extra_protection" {
+  type    = bool
+  default = false
+}
+
+resource "github_repository_ruleset" "extra" {
+  # 単一インスタンスの条件付き生成。慣用句として許容。
+  count = var.enable_extra_protection ? 1 : 0
+
+  name        = "extra protection"
+  repository  = "gachanuma"
+  target      = "branch"
+  enforcement = "active"
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  rules {
+    creation = true
+  }
+}

@@ -1,0 +1,42 @@
+# Fixture (negative): validation で列挙制約を表現している。
+# 期待: 観点 2 は発火しない。
+
+variable "repositories" {
+  description = "Managed repositories."
+
+  type = map(object({
+    status_check_contexts       = optional(list(string), [])
+    status_check_integration_id = optional(number)
+
+    enforcement           = optional(string)
+    allowed_merge_methods = optional(list(string))
+  }))
+
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      length(r.status_check_contexts) == 0 || r.status_check_integration_id != null
+    ])
+    error_message = "status_check_integration_id is required when status_check_contexts is non-empty."
+  }
+
+  # 列挙値 validation: enforcement.
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      r.enforcement == null || contains(["active", "evaluate", "disabled"], r.enforcement)
+    ])
+    error_message = "enforcement must be one of: active, evaluate, disabled."
+  }
+
+  # 列挙値 validation: allowed_merge_methods の各要素.
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      r.allowed_merge_methods == null || alltrue([
+        for m in r.allowed_merge_methods : contains(["squash", "merge", "rebase"], m)
+      ])
+    ])
+    error_message = "allowed_merge_methods values must be a subset of [squash, merge, rebase]."
+  }
+}

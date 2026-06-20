@@ -154,6 +154,42 @@ terraform apply        # 適用
 
 冪等性: `apply` 直後に再度 `plan`/`apply` しても `No changes` になる。
 
+### PR レビュー時の reviewer 併用
+
+`.tf` 変更を含む PR では、汎用 `dev-workflow:code-reviewer`（既存）に加えて Terraform 固有設計レビュー用の `terraform-design-reviewer`（本リポ `.claude/agents/` 配下）を併用する。詳細は [`docs/agents/terraform-design-reviewer/README.md`](docs/agents/terraform-design-reviewer/README.md) を参照。
+
+`terraform-design-reviewer` は `Bash` 権限を持たないため、呼び出し側で事前に `git diff` を取得してプロンプトに含める。起動例（Claude Code 内）:
+
+```bash
+# 呼び出し側で事前に取得
+git diff main...HEAD -- '*.tf' '*.tfvars' > /tmp/tf-diff.txt
+```
+
+```
+# 汎用レビュアー（既存）と並列起動
+Agent(subagent_type: "dev-workflow:code-reviewer", prompt: "...")
+Agent(
+  subagent_type: "terraform-design-reviewer",
+  prompt: """
+    ベースブランチ: main
+
+    ## git diff
+    <`/tmp/tf-diff.txt` の中身を貼り付け>
+
+    ## plan 出力（任意）
+    <HCP plan 出力テキスト。未提供なら空欄>
+
+    ## 要件情報
+    <Issue/PR 本文の要点>
+  """
+)
+```
+
+両 reviewer は補完関係。重複指摘抑止ルール:
+
+- 観点境界は `terraform-design-reviewer` の reviewer 定義に明文化（観点 5: Terraform 固有定数に限定）。
+- 同一行・同主旨の指摘が両 reviewer から出た場合は片方を採用する（重複は二重表示しない）。
+
 ---
 
 ## 手順: 新規リポを管理対象に追加する

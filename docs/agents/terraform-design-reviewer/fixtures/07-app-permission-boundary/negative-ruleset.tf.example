@@ -1,0 +1,22 @@
+# Fixture (negative): github_repository_ruleset を追加。
+# 既存 branch_protection.tf の延長で、Administration RW で動作する。
+# 期待: 観点 7 は発火しない。
+
+resource "github_repository_ruleset" "tag_protection" {
+  name        = "tag protection"
+  repository  = "gachanuma"
+  target      = "tag"
+  enforcement = "active"
+
+  conditions {
+    ref_name {
+      include = ["~ALL"]
+      exclude = []
+    }
+  }
+
+  rules {
+    creation = true
+    deletion = true
+  }
+}

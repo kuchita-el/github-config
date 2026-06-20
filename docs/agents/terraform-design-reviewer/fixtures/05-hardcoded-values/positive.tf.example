@@ -1,0 +1,37 @@
+# Fixture (positive): GitHub Actions App ID（15368）を resource 内に直書き。
+# terraform.tfvars:11/27 で参照されているハードコード値が resource 内に侵入。
+# 期待: 観点 5 が suggestion で発火。
+
+resource "github_repository_ruleset" "branch_protection_gachanuma" {
+  name        = "main protection"
+  repository  = "gachanuma"
+  target      = "branch"
+  enforcement = "active"
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  rules {
+    creation = true
+
+    required_status_checks {
+      required_check {
+        context        = "lint"
+        # NOTE: GitHub Actions の App ID をリテラル直書きしている。
+        # locals.tf または variables.tf に抽出すべき
+        # （例: var.github_actions_app_id）。
+        integration_id = 15368
+      }
+      required_check {
+        context        = "build"
+        integration_id = 15368
+      }
+      strict_required_status_checks_policy = true
+      do_not_enforce_on_create             = false
+    }
+  }
+}
