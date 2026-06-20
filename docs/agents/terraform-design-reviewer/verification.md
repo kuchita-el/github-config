@@ -78,7 +78,7 @@ Issue #20 の AC2/3/4 が要求する「reviewer が観点 X を期待通り blo
 
 - 陽性 A (merge): security preset 欠落 + null 除去欠落の二重逸脱 → blocker 発火
 - 陽性 B (ternary): `ovr.X` 直接代入でフォールバック欠落 → blocker 発火
-- 陰性 A/B: ADR 0001 §1 通りの merge 形式 / `locals.tf:36-60` 通りの三項演算子 → いずれも発火なし
+- 陰性 A/B: ADR 0001 §1 通りの merge 形式 / `locals.tf:36-55` 通りの三項演算子 → いずれも発火なし
 
 ### 観点 7（App 権限境界）
 
