@@ -16,11 +16,19 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 | 3 | `lifecycle.ignore_changes` 網羅性 | blocker | `github_repository` に `visibility`/`archived` の `ignore_changes` が無い | [ADR 0001](../../adr/0001-repository-resource-structure.md) §3 |
 | 4 | `for_each` vs `count` | warning | 固有キーを持つ要素が `count = N`（N≥2）で生成。`count = 1` は許容 | [`branch_protection.tf`](../../../branch_protection.tf) L4-50 |
 | 5 | ハードコード値の抽出 | suggestion | Terraform 固有のリテラル定数・環境依存値が resource 内に直書き | [`terraform.tfvars`](../../../terraform.tfvars) L11/L27 |
-| 6 | preset 上書き経路の一貫性 | blocker | `merge() + null除去` または `ovr.X != null ? ovr.X : base.X` から逸脱 | [ADR 0001](../../adr/0001-repository-resource-structure.md) §1 / [`locals.tf`](../../../locals.tf) L36-60 |
+| 6 | preset 上書き経路の一貫性 | blocker | `merge() + null除去` または `ovr.X != null ? ovr.X : base.X` から逸脱 | [ADR 0001](../../adr/0001-repository-resource-structure.md) §1 / [`locals.tf`](../../../locals.tf) L36-55 |
 | 7 | App 権限境界違反 | blocker | App スコープ（Administration RW + Metadata R）の範囲外 resource 追加 | [`README.md`](../../../README.md) §設計思想, §初期セットアップ §3 |
 | 8 | plan-time リスク | warning / blocker | HCP plan 出力に destroy/replace 兆候。`import.tf` 連携時は blocker | reviewer 定義 §観点 8 |
 
 ## 起動例
+
+### 呼び出し側の事前準備
+
+reviewer は `Bash` ツールを持たないため、呼び出し側で `git diff` を事前取得する:
+
+```bash
+git diff main...HEAD -- '*.tf' '*.tfvars' > /tmp/tf-diff.txt
+```
 
 ### 単独起動
 
@@ -28,12 +36,18 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 Agent(
   subagent_type: "terraform-design-reviewer",
   description: "Review TF diff for PR #N",
-  prompt: |
+  prompt: """
     ベースブランチ: main
-    要件情報: <Issue/PR 本文の要点>
-    HCP plan 出力: <あれば貼り付け、なければ「未提供」>
 
-    git diff main...HEAD で .tf 差分を取得し観点 1〜8 を評価せよ。
+    ## git diff
+    <`/tmp/tf-diff.txt` の中身を貼り付け>
+
+    ## plan 出力（任意）
+    <HCP plan 出力テキスト。未提供なら空欄>
+
+    ## 要件情報
+    <Issue/PR 本文の要点>
+  """
 )
 ```
 
@@ -41,8 +55,17 @@ Agent(
 
 ```
 # 同一メッセージ内で並列起動（互いに独立、結果統合は呼び出し側で）
-Agent(subagent_type: "dev-workflow:code-reviewer", prompt: ...)
-Agent(subagent_type: "terraform-design-reviewer", prompt: ...)
+Agent(subagent_type: "dev-workflow:code-reviewer", prompt: "...")
+Agent(
+  subagent_type: "terraform-design-reviewer",
+  prompt: """
+    ベースブランチ: main
+    ## git diff
+    <事前取得した diff を貼る>
+    ## 要件情報
+    <Issue/PR 本文の要点>
+  """
+)
 ```
 
 両出力は呼び出し側で統合する。重複指摘抑止ルール（[`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用) 参照）:
