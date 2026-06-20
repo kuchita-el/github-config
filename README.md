@@ -33,6 +33,9 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
 | `locals.tf` | ベース設定とリポ別 override の合成ロジック |
 | `branch_protection.tf` | Ruleset リソース（`for_each` 展開） |
+| `repository.tf` | `github_repository` リソース（`for_each` 展開）。preset 合成 + `lifecycle.ignore_changes` |
+| `repository_security.tf` | セキュリティ系 base preset（`local.repository_security_preset`）。ADR 0001 §1 動機軸分割 |
+| `repository_process.tf` | 開発プロセス系 base preset（`local.repository_process_preset`）。Issue #17 で値を埋める |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -177,6 +180,8 @@ terraform apply        # 適用
 3. リポ別差分は `variables.tf` の `repositories` object に optional 属性を足し、`terraform.tfvars` で注入。
 4. リソースは `for_each = local.<新設定>` でリポ単位に展開（1設定種別 = 1リソース）。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
+
+> ただし、`github_repository` のように **単一リソースで複数の動機軸（セキュリティ / 開発プロセス等）の属性を持つ**ケースは別パターンを採用する。1リソース＝1ファイルの上で、preset を動機軸ごとに locals 分割する（`repository_security.tf` / `repository_process.tf`）。詳細は [ADR 0001](docs/adr/0001-repository-resource-structure.md) を参照。
 
 ---
 
