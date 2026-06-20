@@ -162,7 +162,7 @@ terraform apply        # 適用
 
 ```
 # 汎用レビュアー（既存）と並列起動
-Agent(subagent_type: "code-reviewer", ...)
+Agent(subagent_type: "dev-workflow:code-reviewer", ...)
 Agent(subagent_type: "terraform-design-reviewer", ...)
 ```
 

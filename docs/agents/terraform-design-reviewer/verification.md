@@ -1,16 +1,19 @@
-# terraform-design-reviewer 検証エビデンス
+# terraform-design-reviewer 検証エビデンス（**代理試験**）
 
 Issue #20 の AC2/3/4 が要求する「reviewer が観点 X を期待通り blocker/warning として発火する」ことを、フィクスチャ駆動で確認した記録。
+
+> ⚠️ **本記録は代理試験です**。本検証は `terraform-design-reviewer` の subagent 実体ではなく、**汎用 `claude` subagent に reviewer 定義テキストを渡して同等プロンプトで評価させた代理実行**による結果。subagent ローダの YAML パース・名前解決・`tools` 継承挙動など、実機でしか露見しない不具合は素通し可能。**実機 `Agent(subagent_type: "terraform-design-reviewer")` 起動によるエビデンスは取得していない**。実機検証は別 Issue で追跡する（後述「制限事項」）。
 
 ## 検証方法
 
 - **入力**: `fixtures/0{1-8}-*/` 配下の陽性 (`positive.tf.example`)・陰性 (`negative.tf.example`)・境界ケース
-- **手順**: 各観点ごとに subagent（汎用 claude）を 1 体起動し、`.claude/agents/terraform-design-reviewer.md` の観点定義に厳密に従ってフィクスチャを評価させた。subagent には以下を渡した:
+- **手順**: 各観点ごとに subagent（**汎用 `claude` 種別、代理実行**）を 1 体起動し、`.claude/agents/terraform-design-reviewer.md` の観点定義に厳密に従ってフィクスチャを評価させた。subagent には以下を渡した:
   1. reviewer 定義の該当観点節
   2. 陽性/陰性/境界フィクスチャ
   3. 期待出力 (`expected.md`)
 - **PASS 条件**: 観点 # と重大度の判定が `expected.md` と一致、かつ指摘文言の主旨が意味的に一致
 - **試行回数**: 各ケース 1 回（プランで指定した「最低 2 回」は時間制約により 1 回に縮退。観点 # と重大度の安定性は将来の繰り返し検証で確認する予定。本実装段階では 1 回の判定で reviewer 定義の検出条件と一致することを確認）
+- **代理試験の限界**: 「reviewer 定義テキストに従って評価する LLM の挙動」を測定したものであり、「`terraform-design-reviewer` subagent が実機で同じ挙動を示す」ことの保証ではない。subagent 仕様（frontmatter の `tools` 制限・`name` 解決・`model` 継承等）の効果は未測定。
 
 ## 照合表
 
@@ -109,4 +112,4 @@ Issue #20 の AC2/3/4 が要求する「reviewer が観点 X を期待通り blo
 
 ## 結論
 
-22 ケース全 PASS。AC1〜AC5 を満たす検証エビデンスを取得した。
+22 ケース全 PASS（**代理試験**）。AC1〜AC5 を満たす検証エビデンスを **代理実行レベル** で取得した。実機 reviewer 起動による補強は別 Issue で追跡する。
