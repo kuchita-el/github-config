@@ -18,12 +18,26 @@ if [[ "$file_path" != *.tf ]]; then
   exit 0
 fi
 
-if ! command -v terraform >/dev/null 2>&1; then
+if [[ "$file_path" != /* ]]; then
+  file_path="${CLAUDE_PROJECT_DIR:-$PWD}/$file_path"
+fi
+
+if command -v mise >/dev/null 2>&1; then
+  terraform_bin="$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && mise which terraform 2>/dev/null || true)"
+else
+  terraform_bin=""
+fi
+
+if [[ -z "$terraform_bin" ]] && command -v terraform >/dev/null 2>&1; then
+  terraform_bin="$(command -v terraform)"
+fi
+
+if [[ -z "$terraform_bin" ]]; then
   echo "terraform-fmt hook: warn: terraform not found, skipping fmt for $file_path" >&2
   exit 0
 fi
 
-if ! terraform fmt "$file_path" >/dev/null 2>&1; then
+if ! "$terraform_bin" fmt "$file_path" >/dev/null 2>&1; then
   echo "terraform-fmt hook: warn: terraform fmt failed for $file_path" >&2
   exit 0
 fi
