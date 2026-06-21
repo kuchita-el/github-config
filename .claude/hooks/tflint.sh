@@ -32,7 +32,7 @@ if [[ ! -f "$config" ]]; then
 fi
 
 if command -v mise >/dev/null 2>&1; then
-  tflint_bin="$(mise which tflint 2>/dev/null || true)"
+  tflint_bin="$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && mise which tflint 2>/dev/null || true)"
 else
   tflint_bin=""
 fi
