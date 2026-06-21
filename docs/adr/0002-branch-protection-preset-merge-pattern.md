@@ -47,7 +47,7 @@ branch_protection = {
 
 - **合成パターンの一本化**: `branch_protection` と `github_repository` 系（将来）が同一の合成方式となり、読み手はひとつの流儀を覚えるだけでよい
 - **属性追加手順の単純化**: セレクター式パターンでは属性追加時に合成式の行も追加が必要だったが、`merge()` パターンでは base preset に追加するだけで合成式は変更不要
-- **振る舞い不変**: 本変更は合成式の書き換えのみであり、`github_repository_ruleset.branch_protection` リソースに渡る属性値は管理対象4リポ全件で現状と完全一致する（HCP Remote `terraform plan` で `No changes` を確認済み）
+- **振る舞い不変**: 本変更は合成式の書き換えのみであり、`github_repository_ruleset.branch_protection` リソースに渡る属性値は管理対象4リポ全件で現状と完全一致する（HCP Remote Speculative Plan で `No changes` を確認する）
 - **型安全性の維持**: `contains(keys(preset), k)` フィルタは preset キーの有無に基づく静的チェックであり、`coalesce` のような型不一致リスク（bool/list の誤判定）を回避する
 
 ## 代替案
