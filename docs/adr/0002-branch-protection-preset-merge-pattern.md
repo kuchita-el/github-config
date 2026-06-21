@@ -2,7 +2,20 @@
 
 ## ステータス
 
-承認済（2026-06-21）
+**Superseded by [ADR 0001 改訂](0001-repository-resource-structure.md)（[#63](https://github.com/kuchita-el/github-config/issues/63)、2026-06-21）**
+
+> 注: `branch_protection.tf` の実コードは移行 Issue 完了まで本 ADR の `merge()` + null除去パターンを使用中。新規属性追加・改修時は引き続き本 ADR の決定に従うこと。
+
+初版は同日 2026-06-21 承認済。承認直後に ADR 0001 改訂（#63）で `repositories` 変数全体を `optional(type, default)` による variable defaults パターンへ統一する方針が確定し、`branch_protection` も同方針の適用対象に含まれることが明示された。これに伴い本 ADR の「`merge()` + null除去パターンへ統一」決定は上位解（variable defaults）に置き換えられ、superseded となる。
+
+本 ADR が解決を試みた以下2点は ADR 0001 改訂で**より強い形で達成される**:
+
+- **合成パターンの一本化**: ADR 0001 改訂では `merge()` 自体を使わず、preset 値を `optional(type, default)` で variable に集約する。`branch_protection` と `github_repository` 系の双方が同じ「variable defaults + 直接参照」レイアウトに揃う。
+- **属性追加コストの線形化回避**: 属性追加は `variables.tf` の型定義1行追加のみで済む（resource ブロック側の変更も不要）。
+
+加えて ADR 0001 改訂が指摘した `merge()` の戻り値の `map(any)` 化による静的型チェック喪失も、`optional(type, default)` で型保証されることで解消される。
+
+本 ADR の決定内容（`merge()` パターン）は履歴として残し削除しない。`branch_protection.tf` 実コードを variable defaults へ移行する作業は ADR 0001 改訂のスコープ外であり、別 Issue で実施する。本 ADR が定義した `status_check_*` の `contains` フィルタ + 第3引数明示注入は、移行時に `status_check_contexts = optional(list(string), [])` 宣言で代替されるため不要になる。
 
 ## コンテキスト
 
