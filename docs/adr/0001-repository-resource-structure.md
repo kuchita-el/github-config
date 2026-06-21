@@ -194,7 +194,7 @@
   }
   ```
 
-- **`moved` ブロックの永続保持制約**: **適用済みの `moved` ブロックは削除してはならない**。Terraform 公式ドキュメントが「`moved` ブロックを削除することは breaking change」と明記しているとおり、削除すると Terraform は再び「`["new-name"]` の destroy + `["old-name"]` の create」と解釈し、destroy 事故が再発する。`moved` ブロックは履歴として永続保持し、リポ名変更のたびに新規 `moved` を追加していく運用となる（古い `moved` を集約・削除する保守作業は行わない）。
+- **`moved` ブロックの永続保持制約**: **`moved` ブロックは apply 前に削除しない**。apply 前に削除すると plan が再び「`["old-name"]` の destroy + `["new-name"]` の create」として計画され、destroy 事故が再発する。apply 後の削除は本リポの root module + HCP single-state 環境では技術的には安全だが、Terraform 公式は「モジュール利用者全員が apply 済みになるまで保持を推奨」しており、将来のモジュール化・変更 audit trail を兼ねて永続保持する方針とする。`moved` ブロックはリポ名変更のたびに追記し、削除・集約の保守作業は行わない。
 - **対処が必要なタイミング**: 対処が必要なのは「`github_repository` リソースが Terraform 管理下に入ったあと（[#16](https://github.com/kuchita-el/github-config/issues/16) マージ後）にリポ名を変更する場合」のみ。管理下に入る前は state にアドレスが存在しないため `moved` ブロック不要であり、GitHub UI で名前変更 → `terraform.tfvars` 更新（リポ名キーは新名で記述）で完結する。
 - **機械検出**: 同一シナリオを `terraform plan` 前に検出する仕組みとして、本リポは `terraform-design-reviewer` 観点 1（[`docs/agents/terraform-design-reviewer/README.md`](../agents/terraform-design-reviewer/README.md) 観点表 1行目）を持つ。PR 内で `for_each` キーの差分があるのに対応する `moved` ブロックが無い場合、blocker として検出する。
 
