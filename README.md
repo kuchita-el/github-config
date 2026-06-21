@@ -57,6 +57,8 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 terraform version   # >= 1.6 であること
 ```
 
+`mise` 利用時はリポルートで `mise install` を実行すれば `terraform` / `tflint` 双方が `mise.toml` の固定バージョンで取得できる。`tflint` は v0.51 以降 `terraform-linters/tflint-ruleset-terraform` を bundled しているため、リポルートの `.tflint.hcl` 設定のみで動作し、追加の `tflint --init` は不要（カスタム plugin を増やした場合のみ実施）。
+
 ### 2. HCP Terraform アカウント・組織・ワークスペースの作成
 
 1. https://app.terraform.io にサインアップ（無料tier）。
@@ -152,7 +154,7 @@ terraform plan         # 変更内容を事前確認（レビュー）
 terraform apply        # 適用
 ```
 
-Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit` 直後に `terraform fmt` が PostToolUse hook (`.claude/hooks/terraform-fmt.sh`) で自動実行される。手動 `terraform fmt` も引き続き有効。
+Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit` 直後に `terraform fmt`（`.claude/hooks/terraform-fmt.sh`）と `tflint`（`.claude/hooks/tflint.sh`）が PostToolUse hook で自動実行される。`tflint` は `.tflint.hcl` の `terraform-linters/tflint-ruleset-terraform` `recommended` プリセットで対象ファイルの違反のみを stderr に出力する（違反検知時もセッションはブロックされない）。手動 `terraform fmt` / `tflint` も引き続き有効。
 
 冪等性: `apply` 直後に再度 `plan`/`apply` しても `No changes` になる。
 
