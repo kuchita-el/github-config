@@ -1,21 +1,21 @@
 # Fixture (negative, B: 三項演算子パターン): フォールバックを持つ。
-# locals.tf:36-55 の既存 branch_protection と同形。
+# branch_protection.tf:39-63 の既存 branch_protection と同形。
 # 期待: 観点 6 は発火しない（B）。
 
 locals {
   branch_protection = {
     for repo, ovr in var.repositories : repo => {
-      name        = local.base_branch_protection.name
-      target      = local.base_branch_protection.target
+      name        = local.branch_protection_preset.name
+      target      = local.branch_protection_preset.target
 
       # ovr.X != null ? ovr.X : base.X フォールバック。
-      enforcement                     = ovr.enforcement != null ? ovr.enforcement : local.base_branch_protection.enforcement
-      required_approving_review_count = ovr.required_approving_review_count != null ? ovr.required_approving_review_count : local.base_branch_protection.required_approving_review_count
+      enforcement                     = ovr.enforcement != null ? ovr.enforcement : local.branch_protection_preset.enforcement
+      required_approving_review_count = ovr.required_approving_review_count != null ? ovr.required_approving_review_count : local.branch_protection_preset.required_approving_review_count
 
-      creation            = local.base_branch_protection.creation
-      deletion            = local.base_branch_protection.deletion
-      non_fast_forward    = local.base_branch_protection.non_fast_forward
-      required_signatures = local.base_branch_protection.required_signatures
+      creation            = local.branch_protection_preset.creation
+      deletion            = local.branch_protection_preset.deletion
+      non_fast_forward    = local.branch_protection_preset.non_fast_forward
+      required_signatures = local.branch_protection_preset.required_signatures
     }
   }
 }

@@ -10,7 +10,7 @@ variable "repositories" {
     Each entry overrides the branch-protection preset defined in branch_protection.tf.
     Leave an attribute unset to inherit the preset value. The only commonly
     repo-specific values are the required status check contexts (CI job names),
-    which differ per repository, so they live here rather than in the base.
+    which differ per repository, so they live here rather than in the preset.
   EOT
 
   type = map(object({
@@ -21,7 +21,7 @@ variable "repositories" {
     # Required when status_check_contexts is non-empty.
     status_check_integration_id = optional(number)
 
-    # Optional per-repo overrides of the base preset (null = inherit base).
+    # Optional per-repo overrides of the preset (null = inherit preset value).
     enforcement                          = optional(string)
     required_approving_review_count      = optional(number)
     dismiss_stale_reviews_on_push        = optional(bool)
