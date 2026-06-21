@@ -232,12 +232,10 @@ Agent(
 
 > Claude Code 本体は別途インストール済みであることを前提とする。Docker も必要（公式 MCP サーバが Docker stdio で起動するため）。
 
-1. **marketplace の追加（user スコープ、各自 1 回のみ）**
-   ```bash
-   claude plugin marketplace add hashicorp/agent-skills
-   ```
-2. **プロジェクトを開いて `claude` を起動** — 初回は project スコープの `.mcp.json` および `.claude/settings.json` に対する信頼確認ダイアログが出るので、それぞれ承認する。
-3. **動作確認**
+marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraKnownMarketplaces` で project スコープ宣言済みのため、手動追加は不要。
+
+1. **プロジェクトを開いて `claude` を起動** — 初回は project スコープの `.mcp.json` および `.claude/settings.json`（marketplace / plugin 有効化）に対する信頼確認ダイアログが出るので、それぞれ承認する。
+2. **動作確認**
    ```bash
    claude plugin list  # 両 plugin が ✔ enabled になっていること
    claude mcp list     # terraform / plugin:terraform-code-generation:terraform 等が ✔ Connected になっていること
