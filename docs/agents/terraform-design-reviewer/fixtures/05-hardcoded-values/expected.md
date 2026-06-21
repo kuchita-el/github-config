@@ -5,7 +5,7 @@
 - **観点 #**: 5
 - **重大度**: suggestion
 - **対象**: `integration_id = 15368` の直書き（2箇所）
-- **指摘文言の主旨**: GitHub Actions の App ID（15368）が resource 内に直書きされている。`terraform.tfvars:11/27` で既に同値が参照されているように、`locals.tf` または `variables.tf` に抽出すべき。
+- **指摘文言の主旨**: GitHub Actions の App ID（15368）が resource 内に直書きされている。`terraform.tfvars:11/27` で既に同値が参照されているように、locals（対応リソースの .tf ファイル内）または `variables.tf` に抽出すべき。
 
 ## 陰性ケース (`negative.tf.example`)
 
