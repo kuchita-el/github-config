@@ -1,0 +1,28 @@
+name: terraform
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: terraform fmt -check -recursive
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: terraform init -backend=false
+      - run: terraform validate
+
+  tflint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tflint --recursive --config .tflint.hcl
