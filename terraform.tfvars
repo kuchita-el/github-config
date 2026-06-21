@@ -11,9 +11,11 @@ repositories = {
     status_check_integration_id = 15368 # GitHub Actions
   }
 
-  # github-config: self-governance (dogfooding). No CI yet (#8), so no status
-  # check contexts — branch-protection preset only. Add contexts once #8 lands.
-  "github-config" = {}
+  # github-config: self-governance (dogfooding). CI added in #8.
+  "github-config" = {
+    status_check_contexts       = ["fmt", "validate", "tflint"]
+    status_check_integration_id = 15368 # GitHub Actions
+  }
 
   # claude-shared-skills: onboarded by standardizing its pre-existing ruleset
   # (which was enforcement=disabled) to the preset. No CI → no contexts.
