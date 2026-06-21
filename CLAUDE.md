@@ -12,6 +12,8 @@
 
 `terraform fmt` / `terraform validate` はローカルで実行してよい（state を生成しないため）。
 
+VCS 連携（`kuchita-el/github-config` ↔ HCP Workspace）が有効であるため、PR 起票・push をトリガーに HCP Workspace で **Speculative Plan が自動起動**する。結果は GitHub Checks（PR の "Checks" タブ）に表示されるため、レビュアーはマージ可否を GitHub UI 上で判断できる。ローカル CLI からの `terraform plan` は開発者の自己確認・手戻り防止のための**任意習慣**であり、マージ前の強制ゲートではない。
+
 ## 2. 既存リポを管理対象に入れる際は `import` → `plan` no-op 確認必須
 
 既に GitHub 側で稼働中のリポ・Ruleset・Repository 設定を `terraform.tfvars` の `repositories` に追加する場合、必ず以下の順序で進めること。

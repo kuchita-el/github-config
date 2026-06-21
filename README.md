@@ -147,9 +147,19 @@ terraform validate     # 構文・スキーマ検証
 ```bash
 terraform fmt          # 整形
 terraform validate     # 検証
-terraform plan         # 変更内容を事前確認（レビュー）
-terraform apply        # 適用
+terraform plan         # （任意）手戻り防止の自己確認
+# → PR 起票後、HCP Speculative Plan が GitHub Checks に自動表示される（強制ゲート）
+terraform apply        # HCP UI で plan 結果を確認後、適用
 ```
+
+### Speculative Plan の自動起動（VCS 連携）
+
+HCP Workspace は `kuchita-el/github-config` リポに VCS 連携済みのため、**PR を起票・push すると HCP で Speculative Plan が自動起動**する。
+
+- Plan 結果（成功・失敗・差分有無）は PR の "Checks" タブに表示される
+- マージ前の振る舞い確認はこの自動 Plan を正とする
+- ローカルの `terraform plan` は**任意習慣**（開発者の自己確認・手戻り防止用）であり、強制ゲートではない
+- Apply は自動化されない（Manual apply）。HCP UI で `Plan succeeded` を確認後、`Start apply` を押す
 
 Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit` 直後に `terraform fmt`（`.claude/hooks/terraform-fmt.sh`）と `tflint`（`.claude/hooks/tflint.sh`）が PostToolUse hook で自動実行される。`tflint` は `.tflint.hcl` の `terraform-linters/tflint-ruleset-terraform` `recommended` プリセットで対象ファイルの違反のみを stderr に出力する（違反検知時もセッションはブロックされない）。手動 `terraform fmt` / `tflint` も引き続き有効。
 
@@ -252,6 +262,9 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 |---|---|
 | `403 Resource not accessible by integration` | App に対象リポの **Administration: Read and write** が無い、対象リポが **インストール対象に含まれていない**、または provider の `owner` 未設定。手順3（権限・Selected repositories）を見直す |
 | `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`branch_protection.tf` を実態へ寄せる |
+| Speculative Plan が PR 起票後に自動起動しない | HCP Workspace の Settings → Version Control で VCS 連携が未設定か "Automatic speculative plans on pull requests" が無効。連携 UI を確認する |
+| GitHub Checks に HCP Terraform の check が現れない | GitHub App（Terraform Cloud）がリポにインストールされていないか権限が不足。HCP の VCS 設定画面の手順に従い GitHub App を再インストールする |
+| Speculative Plan が `Error` / `Failed` で終わる | `.tf` 構文エラー・provider 認証失敗・変数未定義が原因のことが多い。HCP UI の Run ログで詳細を確認し、ローカルで `terraform validate` / `terraform fmt` を実施する |
 | provider のスキーマエラー | provider バージョン差異。`~> 6.0` 固定と `.terraform.lock.hcl` のコミットを確認 |
 | `Error: Required token could not be found` 等の認証エラー | App 変数3本（`GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE`）が HCP workspace に未登録、または `providers.tf` の `app_auth {}` ブロック欠落。手順4を見直す |
 | ローカル `terraform validate` で `app_auth` の `installation_id is required` | App 認証情報は環境変数から解決されるため、ローカル validate には `GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE` の export が必要（Remote 実行では HCP が注入するので不要） |
