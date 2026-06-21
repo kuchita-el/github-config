@@ -8,7 +8,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-file_path="$(jq -r '.tool_input.file_path // empty')"
+file_path="$(jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 
 if [[ -z "$file_path" ]]; then
   exit 0
@@ -23,7 +23,7 @@ if ! command -v terraform >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! terraform fmt "$file_path" >/dev/null; then
+if ! terraform fmt "$file_path" >/dev/null 2>&1; then
   echo "terraform-fmt hook: warn: terraform fmt failed for $file_path" >&2
   exit 0
 fi
