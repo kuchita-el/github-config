@@ -22,7 +22,7 @@ resource "github_repository_ruleset" "branch_protection_gachanuma" {
       required_check {
         context        = "lint"
         # NOTE: GitHub Actions の App ID をリテラル直書きしている。
-        # locals.tf または variables.tf に抽出すべき
+        # locals（対応リソースの .tf ファイル内）または variables.tf に抽出すべき
         # （例: var.github_actions_app_id）。
         integration_id = 15368
       }
