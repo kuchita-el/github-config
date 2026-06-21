@@ -10,5 +10,18 @@
         "repo": "hashicorp/agent-skills"
       }
     }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/terraform-fmt.sh"
+          }
+        ]
+      }
+    ]
   }
 }
