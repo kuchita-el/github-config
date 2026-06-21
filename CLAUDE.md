@@ -23,11 +23,13 @@
 
 import → plan no-op を経由せずに apply すると、既存設定を Terraform 側の宣言値で上書き新規作成する事故になる。詳細手順は `README.md` の「既存リポの取り込み（import）」節を参照。
 
-## 3. App 権限境界（Administration RW + Metadata R）を超える操作は別途権限拡張が必要
+## 3. App permission scope の拡張は別 Issue が必要
 
-本リポの GitHub App は **インストールスコープ: Selected repositories** + **権限: Administration: Read & write / Metadata: Read のみ** に限定されている（`providers.tf` の `app_auth {}` 経由で HCP の sensitive env var を読む構成）。これを超える Terraform リソース（例: Issues 操作・Contents 書き込み・Organization 単位設定・インストール対象外リポへの操作）を追加するコードを書く前に、ユーザーへ確認し、別 Issue で App 権限およびインストール対象の拡張を行うこと。
+本リポの GitHub App は **権限: Administration: Read & write / Metadata: Read のみ** に限定されている（`providers.tf` の `app_auth {}` 経由で HCP の sensitive env var を読む構成）。これを超える Terraform リソース（例: Issues 操作・Contents 書き込み・Organization 単位設定）を追加するコードを書く前に、ユーザーへ確認し、**別 Issue で App permission scope の拡張**を行うこと。
 
-App PEM 漏洩時のブラストradius は権限スコープと到達リポ範囲で決まる。Contents 権限を付与しない方針はコード改竄を構造的に遮断する設計判断であり、利便性のために緩めない。
+App PEM 漏洩時のブラストradius は permission scope で決まる。Contents 権限を付与しない方針はコード改竄を構造的に遮断する設計判断であり、利便性のために緩めない。
+
+なお、**インストールスコープ（Selected repositories）への管理対象リポ追加は通常運用**であり、§2 の import フローと同一 Issue 内で実施する。App 設定画面での追加操作はユーザーがブラウザで行う必要があるため、Claude は対象リポ名を明示してユーザーへ依頼すること。
 
 ## 4. `terraform.tfvars` は公開値のみ（秘密は HCP workspace 環境変数）
 
