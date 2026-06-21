@@ -47,6 +47,7 @@ App PEM 漏洩時のブラストradius は permission scope で決まる。Conte
 | Issue 実装プラン | `docs/plans/issue-<番号>.md` | **untracked**（`docs/plans/.gitignore` でコミット対象外、PR #40） |
 | spike / 調査ノート | `docs/spike/<slug>.md` | tracked |
 | サブエージェント定義 | `docs/agents/<name>/` | tracked |
+| hook スクリプト | `.claude/hooks/<name>.sh` | tracked |
 
 `docs/plans/` 配下は `.gitignore` でコミット対象外であり、リポには `docs/plans/.gitignore` のみが含まれる。プランファイルはローカル参照専用で、`git add` しても無視される。
 
