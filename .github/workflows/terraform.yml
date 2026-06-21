@@ -19,10 +19,14 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: terraform init -backend=false
       - run: terraform validate
+        env:
+          GITHUB_APP_ID: "1"
+          GITHUB_APP_INSTALLATION_ID: "1"
+          GITHUB_APP_PEM_FILE: "placeholder"
 
   tflint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - run: tflint --recursive --config .tflint.hcl
+      - run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
