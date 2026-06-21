@@ -152,6 +152,8 @@ terraform plan         # 変更内容を事前確認（レビュー）
 terraform apply        # 適用
 ```
 
+Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit` 直後に `terraform fmt` が PostToolUse hook (`.claude/hooks/terraform-fmt.sh`) で自動実行される。手動 `terraform fmt` も引き続き有効。
+
 冪等性: `apply` 直後に再度 `plan`/`apply` しても `No changes` になる。
 
 ### PR レビュー時の reviewer 併用
