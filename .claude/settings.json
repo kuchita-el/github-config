@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "terraform-code-generation@hashicorp": true,
+    "terraform-module-generation@hashicorp": true
+  },
+  "extraKnownMarketplaces": {
+    "hashicorp": {
+      "source": {
+        "source": "github",
+        "repo": "hashicorp/agent-skills"
+      }
+    }
+  }
+}

@@ -216,6 +216,35 @@ Agent(
 
 ---
 
+## Claude Code 連携（オプション）
+
+本リポは Claude Code 用の MCP / skill を project スコープで設定済み。Terraform 編集を Claude Code 上で行う場合のみ必要、ローカル CLI / HCP からの `terraform plan/apply` には影響しない。
+
+### 構成
+
+| 種別 | 名前 | 出所 | 用途 |
+|---|---|---|---|
+| MCP（`.mcp.json`） | `terraform` | `hashicorp/terraform-mcp-server:1.0.0`（公式、Docker stdio） | Terraform Registry の provider 属性 live 照会 |
+| skill plugin（`.claude/settings.json`） | `terraform-code-generation@hashicorp` | `hashicorp/agent-skills` marketplace | `terraform-style-guide` 等を提供 |
+| skill plugin（`.claude/settings.json`） | `terraform-module-generation@hashicorp` | 同上 | `refactor-module` 等（将来モジュール分割時のケイパビリティ担保） |
+
+### 初回セットアップ
+
+> Claude Code 本体は別途インストール済みであることを前提とする。Docker も必要（公式 MCP サーバが Docker stdio で起動するため）。
+
+marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraKnownMarketplaces` で project スコープ宣言済みのため、手動追加は不要。
+
+1. **プロジェクトを開いて `claude` を起動** — 初回は project スコープの `.mcp.json` および `.claude/settings.json`（marketplace / plugin 有効化）に対する信頼確認ダイアログが出るので、それぞれ承認する。
+2. **動作確認**
+   ```bash
+   claude plugin list  # 両 plugin が ✔ enabled になっていること
+   claude mcp list     # terraform / plugin:terraform-code-generation:terraform 等が ✔ Connected になっていること
+   ```
+
+承認状態を破棄してやり直す場合は `claude mcp reset-project-choices`（MCP）あるいは settings の plugin 承認リセット手順を参照。
+
+---
+
 ## トラブルシュート
 
 | 症状 | 原因・対処 |
