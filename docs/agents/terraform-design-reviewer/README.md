@@ -16,7 +16,7 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 | 3 | `lifecycle.ignore_changes` 網羅性 | blocker | `github_repository` に `visibility`/`archived` の `ignore_changes` が無い | [ADR 0001](../../adr/0001-repository-resource-structure.md) §3 |
 | 4 | `for_each` vs `count` | warning | 固有キーを持つ要素が `count = N`（N≥2）で生成。`count = 1` は許容 | [`branch_protection.tf`](../../../branch_protection.tf) L4-50 |
 | 5 | ハードコード値の抽出 | suggestion | Terraform 固有のリテラル定数・環境依存値が resource 内に直書き | [`terraform.tfvars`](../../../terraform.tfvars) L11/L27 |
-| 6 | preset 上書き経路の一貫性 | blocker | `merge() + null除去` または `ovr.X != null ? ovr.X : base.X` から逸脱 | [ADR 0001](../../adr/0001-repository-resource-structure.md) §1 / [`locals.tf`](../../../locals.tf) L36-55 |
+| 6 | preset 上書き経路の一貫性 | blocker | `merge() + null除去` または `ovr.X != null ? ovr.X : base.X` から逸脱 | [ADR 0001](../../adr/0001-repository-resource-structure.md) §1 / [`branch_protection.tf`](../../../branch_protection.tf) L39-63 |
 | 7 | App 権限境界違反 | blocker | App スコープ（Administration RW + Metadata R）の範囲外 resource 追加 | [`README.md`](../../../README.md) §設計思想, §初期セットアップ §3 |
 | 8 | plan-time リスク | warning / blocker | HCP plan 出力に destroy/replace 兆候。`import.tf` 連携時は blocker | reviewer 定義 §観点 8 |
 

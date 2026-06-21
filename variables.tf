@@ -7,8 +7,8 @@ variable "repositories" {
   description = <<-EOT
     Repositories under management, keyed by repository name.
 
-    Each entry overrides the base branch-protection preset defined in locals.tf.
-    Leave an attribute unset to inherit the base value. The only commonly
+    Each entry overrides the branch-protection preset defined in branch_protection.tf.
+    Leave an attribute unset to inherit the preset value. The only commonly
     repo-specific values are the required status check contexts (CI job names),
     which differ per repository, so they live here rather than in the base.
   EOT
