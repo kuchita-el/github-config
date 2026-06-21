@@ -45,8 +45,8 @@
   - `repository_security.tf`: `locals { repository_security_preset = { archived = ..., allow_auto_merge = ..., has_wiki = ..., has_projects = ..., has_discussions = ... } }`（`visibility` は含めない）
   - `repository_process.tf`: `locals { repository_process_preset = { allow_squash_merge = ..., allow_merge_commit = ..., allow_rebase_merge = ..., delete_branch_on_merge = ..., default_branch = ..., description = ..., homepage = ..., topics = ..., has_issues = ... } }`
 - **`merge()` 合成と null 処理**: per-repo override (`var.repositories[each.key]`) は optional フィールドの未指定要素が `null` として入る map になる。`merge()` は後勝ちで `null` も採用するため、未指定 override が base preset 値を `null` で上書きしてしまう。これを避けるため、`merge()` に渡す前に **null フィールドを除去**する。例: `merge(local.repository_security_preset, local.repository_process_preset, { for k, v in var.repositories[each.key] : k => v if v != null })`。`visibility` のみ「必須」として `var.repositories[each.key].visibility` を resource ブロックで直接指定する。
-- **既存 `locals.tf` パターンとの整合**: 既存の `branch_protection` は `ovr.X != null ? ovr.X : base.X` のセレクター式で属性ごとにガードしている。本構造はリポジトリ属性が15個と多く、セレクター式で書くと冗長になるため `merge()` + null 除去パターンを採用する。型安全性は `variables.tf` の optional 型定義で担保する。
-- 既存の `branch_protection.tf` は「1ファイル=1リソース種別」のパターンだが、本構造は「1リソース種別を動機軸ごとに preset 分割し、resource ブロックは別ファイルに集約」というパターン。既存パターンの単純な踏襲ではなく、動機軸の SoT 可視化を優先した独自パターンである旨を明記する。
+- **既存 `locals.tf` パターンとの整合**: 既存の `branch_protection` は `ovr.X != null ? ovr.X : base.X` のセレクター式で属性ごとにガードしている。本構造はリポジトリ属性が15個と多く、セレクター式で書くと冗長になるため `merge()` + null 除去パターンを採用する。型安全性は `variables.tf` の optional 型定義で担保する。※ ADR 0002（[Issue #43](https://github.com/kuchita-el/github-config/issues/43)、2026-06-21）にて `branch_protection` も `merge()` + null 除去パターンへ統一済み。本記述は ADR 0001 起票時点（`branch_protection` がセレクター式だった状態）の記録。
+- 既存の `branch_protection.tf` は「1ファイル=1リソース種別」のパターンだが、本構造は「1リソース種別を動機軸ごとに preset 分割し、resource ブロックは別ファイルに集約」というパターン。既存パターンの単純な踏襲ではなく、動機軸の SoT 可視化を優先した独自パターンである旨を明記する。※ ADR 0002 により `branch_protection` の合成パターンも `merge()` 系に統一され、コードベース全体で preset 合成方式が1本化された。
 
 ### 2. `topics` の SoT 化方針: `github_repository.topics` 属性で管理
 
