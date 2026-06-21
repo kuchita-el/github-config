@@ -180,6 +180,24 @@
 - 4リポすべて差分表（付録 A）の値で `import` 後、`variables.tf` の `optional(type, default)` 既定値 + per-repo override（差分のある属性のみ `terraform.tfvars` に記述）を組めば "No changes" になる前提で実装する。
 - `import` 実行は #16 で実施（`github_repository` resource ブロック導入時）。#17 は同一 resource への属性追加なので `import` 不要だが、preset 拡張後に `terraform plan` "No changes" を再確認する。
 
+### リポジトリ名変更時の destroy リスクと `moved` ブロックによる回避
+
+> 本節は `for_each` キー（リポ名）変更を対象とし、後述の「ロールバック可能性」節で扱うリソース構造方針変更（1ファイル集約↔locals 分割、属性管理↔補助リソース分離）に伴う `moved` 要否記述とは別の文脈である。
+
+- **リスク**: `github_repository` リソースは `for_each = var.repositories` で各リポをキー（リポ名）単位で管理する（決定 §1）。このため `terraform.tfvars` の `repositories` キーを `"old-name"` から `"new-name"` へ書き換えると、Terraform は `github_repository.this["old-name"]` の destroy + `github_repository.this["new-name"]` の create として計画する。`github_repository` の destroy は **GitHub リポジトリ本体の削除**（Issue/PR/star/fork/release/Actions 履歴の喪失）を意味するため、何も対処せずに `apply` すると極めて破壊的な事故になる。
+- **回避手順**: Terraform 1.1+ の [`moved` ブロック](https://developer.hashicorp.com/terraform/language/modules/develop/refactoring) で state アドレスのみを更新し、destroy + create を回避する。`terraform.tfvars` のキー書き換えと同じ PR で以下を追加し、`terraform plan` 出力が destroy/create ではなく state アドレスの移動（`# github_repository.this["old-name"] has moved to github_repository.this["new-name"]`）になることを確認する。
+
+  ```hcl
+  moved {
+    from = github_repository.this["old-name"]
+    to   = github_repository.this["new-name"]
+  }
+  ```
+
+- **`moved` ブロックの永続保持制約**: **適用済みの `moved` ブロックは削除してはならない**。Terraform 公式ドキュメントが「`moved` ブロックを削除することは breaking change」と明記しているとおり、削除すると Terraform は再び「`["new-name"]` の destroy + `["old-name"]` の create」と解釈し、destroy 事故が再発する。`moved` ブロックは履歴として永続保持し、リポ名変更のたびに新規 `moved` を追加していく運用となる（古い `moved` を集約・削除する保守作業は行わない）。
+- **対処が必要なタイミング**: 対処が必要なのは「`github_repository` リソースが Terraform 管理下に入ったあと（[#16](https://github.com/kuchita-el/github-config/issues/16) マージ後）にリポ名を変更する場合」のみ。管理下に入る前は state にアドレスが存在しないため `moved` ブロック不要であり、GitHub UI で名前変更 → `terraform.tfvars` 更新（リポ名キーは新名で記述）で完結する。
+- **機械検出**: 同一シナリオを `terraform plan` 前に検出する仕組みとして、本リポは `terraform-design-reviewer` 観点 1（[`docs/agents/terraform-design-reviewer/README.md`](../agents/terraform-design-reviewer/README.md) 観点表 1行目）を持つ。PR 内で `for_each` キーの差分があるのに対応する `moved` ブロックが無い場合、blocker として検出する。
+
 ### 新規リポ追加時の影響
 
 - 新規リポは Terraform 経由で作成する（Issue #6 前提）。`repositories` 変数に該当リポのエントリを追加 → `terraform apply` で作成。
