@@ -17,7 +17,7 @@ filename="$(basename "$file_path")"
 
 block_reason=""
 
-if [[ "$filename" == *.tfstate || "$filename" == *.tfstate.* || "$filename" == *.tfstate* ]]; then
+if [[ "$filename" == *.tfstate* ]]; then
   block_reason="*.tfstate* は HCP Terraform が管理する State of Truth です。直接編集は禁止されています（#25）。"
 elif [[ "$filename" == *.pem ]]; then
   block_reason="*.pem は GitHub App 秘密鍵です。直接編集は禁止されています（#25）。"
