@@ -31,35 +31,24 @@ locals {
 
 locals {
   # ---------------------------------------------------------------------------
-  # Effective settings per repository = preset + per-repo override.
-  # "ovr.X != null ? ovr.X : local.branch_protection_preset.X" applies the
-  # override only when set; this is type-safe for bool/number/string/list alike
-  # (unlike coalesce on lists/bools).
+  # Effective settings per repository = preset merged with per-repo override.
+  # merge() args:
+  #   1. branch_protection_preset — all base values
+  #   2. non-null override keys that exist in the preset (contains filter excludes status_check_*)
+  #   3. status_check_* injected explicitly (repo-specific keys absent from the preset)
   # ---------------------------------------------------------------------------
   branch_protection = {
-    for repo, ovr in var.repositories : repo => {
-      name        = local.branch_protection_preset.name
-      target      = local.branch_protection_preset.target
-      enforcement = ovr.enforcement != null ? ovr.enforcement : local.branch_protection_preset.enforcement
-
-      creation            = local.branch_protection_preset.creation
-      deletion            = local.branch_protection_preset.deletion
-      non_fast_forward    = local.branch_protection_preset.non_fast_forward
-      required_signatures = local.branch_protection_preset.required_signatures
-
-      required_approving_review_count   = ovr.required_approving_review_count != null ? ovr.required_approving_review_count : local.branch_protection_preset.required_approving_review_count
-      dismiss_stale_reviews_on_push     = ovr.dismiss_stale_reviews_on_push != null ? ovr.dismiss_stale_reviews_on_push : local.branch_protection_preset.dismiss_stale_reviews_on_push
-      require_code_owner_review         = ovr.require_code_owner_review != null ? ovr.require_code_owner_review : local.branch_protection_preset.require_code_owner_review
-      require_last_push_approval        = ovr.require_last_push_approval != null ? ovr.require_last_push_approval : local.branch_protection_preset.require_last_push_approval
-      required_review_thread_resolution = ovr.required_review_thread_resolution != null ? ovr.required_review_thread_resolution : local.branch_protection_preset.required_review_thread_resolution
-      allowed_merge_methods             = ovr.allowed_merge_methods != null ? ovr.allowed_merge_methods : local.branch_protection_preset.allowed_merge_methods
-
-      strict_required_status_checks_policy = ovr.strict_required_status_checks_policy != null ? ovr.strict_required_status_checks_policy : local.branch_protection_preset.strict_required_status_checks_policy
-      do_not_enforce_on_create             = ovr.do_not_enforce_on_create != null ? ovr.do_not_enforce_on_create : local.branch_protection_preset.do_not_enforce_on_create
-
-      status_check_contexts       = ovr.status_check_contexts
-      status_check_integration_id = ovr.status_check_integration_id
-    }
+    for repo, ovr in var.repositories : repo => merge(
+      local.branch_protection_preset,
+      {
+        for k, v in ovr : k => v
+        if v != null && contains(keys(local.branch_protection_preset), k)
+      },
+      {
+        status_check_contexts       = ovr.status_check_contexts
+        status_check_integration_id = ovr.status_check_integration_id
+      }
+    )
   }
 }
 
