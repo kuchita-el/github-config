@@ -17,7 +17,7 @@
 既に GitHub 側で稼働中のリポ・Ruleset・Repository 設定を `terraform.tfvars` の `repositories` に追加する場合、必ず以下の順序で進めること。
 
 1. `import {}` ブロックを一時的に追加する（Remote 実行では CLI の `terraform import` コマンドは使えないため、config-driven import を使う）
-2. `terraform plan` が `0 to add, 0 to change, 0 to destroy`（import のみ）になるまで `terraform.tfvars` / `locals.tf` を実態へ寄せる
+2. `terraform plan` が `0 to add, 0 to change, 0 to destroy`（import のみ）になるまで `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる
 3. no-op を確認できたら `terraform apply` で state に取り込む
 4. `import {}` ブロックを削除し、再 `plan` が `No changes` のままであることを確認する
 

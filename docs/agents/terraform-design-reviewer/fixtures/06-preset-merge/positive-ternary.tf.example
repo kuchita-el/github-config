@@ -1,26 +1,26 @@
 # Fixture (positive, B: 三項演算子パターン): null フォールバック欠落。
-# locals.tf:36-55 の branch_protection パターンに違反。
+# branch_protection.tf:39-63 の branch_protection パターンに違反。
 # 期待: 観点 6 が blocker で発火（B）。
 
 locals {
   branch_protection = {
     for repo, ovr in var.repositories : repo => {
-      name        = local.base_branch_protection.name
-      target      = local.base_branch_protection.target
+      name        = local.branch_protection_preset.name
+      target      = local.branch_protection_preset.target
 
       # NOTE: フォールバックが無い。ovr.enforcement が null なら null 上書きしてしまう。
-      # 既存 locals.tf:40 のパターンに従い以下に修正すべき:
-      #   enforcement = ovr.enforcement != null ? ovr.enforcement : local.base_branch_protection.enforcement
+      # 既存 branch_protection.tf:43 のパターンに従い以下に修正すべき:
+      #   enforcement = ovr.enforcement != null ? ovr.enforcement : local.branch_protection_preset.enforcement
       enforcement = ovr.enforcement
 
       # 同上、要修正
       required_approving_review_count = ovr.required_approving_review_count
 
       # その他属性は既存通り。
-      creation            = local.base_branch_protection.creation
-      deletion            = local.base_branch_protection.deletion
-      non_fast_forward    = local.base_branch_protection.non_fast_forward
-      required_signatures = local.base_branch_protection.required_signatures
+      creation            = local.branch_protection_preset.creation
+      deletion            = local.branch_protection_preset.deletion
+      non_fast_forward    = local.branch_protection_preset.non_fast_forward
+      required_signatures = local.branch_protection_preset.required_signatures
     }
   }
 }

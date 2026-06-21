@@ -1,6 +1,6 @@
 # 観点 6（preset 上書き経路の一貫性）の期待出力
 
-参照: `docs/adr/0001-repository-resource-structure.md` §1（`merge() + null 除去`）／`locals.tf:36-55`（三項演算子パターン）
+参照: `docs/adr/0001-repository-resource-structure.md` §1（`merge() + null 除去`）／`branch_protection.tf:39-63`（三項演算子パターン）
 
 ## 検出条件 A（merge パターン）
 
@@ -21,7 +21,7 @@
 
 - **観点 #**: 6
 - **重大度**: blocker
-- **指摘文言の主旨**: `ovr.enforcement` 等のフォールバックが欠落。`locals.tf:36-55` の既存パターンに倣い `ovr.X != null ? ovr.X : local.base_branch_protection.X` 形式に修正すべき。
+- **指摘文言の主旨**: `ovr.enforcement` 等のフォールバックが欠落。`branch_protection.tf:39-63` の既存パターンに倣い `ovr.X != null ? ovr.X : local.branch_protection_preset.X` 形式に修正すべき。
 
 ### 陰性 (`negative-ternary.tf.example`)
 
@@ -30,4 +30,4 @@
 
 ## 注
 
-検出条件 A の `repository_security_preset` / `repository_process_preset` / `repository.tf` 等は現リポに未導入。本観点 A は Issue #16/#17 で導入される PR を対象とする。検出条件 B は現リポの `locals.tf` に既に適用済み。
+検出条件 A の `repository_security_preset` / `repository_process_preset` / `repository.tf` 等は現リポに未導入。本観点 A は Issue #16/#17 で導入される PR を対象とする。検出条件 B は現リポの `branch_protection.tf` に既に適用済み。

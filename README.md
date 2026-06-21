@@ -17,10 +17,8 @@
 terraform.tfvars (管理対象リポ + リポ別override)
         │
         ▼
-locals.tf  base_branch_protection(全リポ共通の既定) + coalesce で override 合成
-        │
-        ▼
-branch_protection.tf  github_repository_ruleset を for_each でリポ単位に展開
+branch_protection.tf  branch_protection_preset(全リポ共通の既定) + セレクター式（!= null ? : ）で override 合成
+                      github_repository_ruleset を for_each でリポ単位に展開
         │
         ▼
 GitHub API (App 認証)        state ⇄ HCP Terraform workspace
@@ -31,8 +29,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `versions.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
-| `locals.tf` | ベース設定とリポ別 override の合成ロジック |
-| `branch_protection.tf` | Ruleset リソース（`for_each` 展開） |
+| `branch_protection.tf` | `branch_protection_preset`（既定）とリポ別 override の合成ロジック + Ruleset リソース（`for_each` 展開） |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -134,7 +131,7 @@ terraform validate     # 構文・スキーマ検証
    # 例: id = "gachanuma:16492768"
    ```
 4. `terraform plan` を実行し、**`0 to add, 0 to change, 0 to destroy`（import のみ）** になるまで
-   `terraform.tfvars` / `locals.tf` を実態へ寄せる。
+   `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。
    差分が出やすい箇所: `allowed_merge_methods` の順序、`required_check` の集合、`integration_id` の有無、`enforcement`。
    ```
    Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
@@ -213,7 +210,7 @@ Agent(
 将来 labels / dependabot / merge settings 等を足すときのパターン:
 
 1. 新しい設定種別ごとに `*.tf` ファイルを1枚追加（例: `repository_labels.tf`）。
-2. 全リポ共通の既定値は `locals.tf` にベースとして定義。
+2. 全リポ共通の既定値は当該 `*.tf` 冒頭に `local.<resource>_preset` として定義（ADR 0001）。
 3. リポ別差分は `variables.tf` の `repositories` object に optional 属性を足し、`terraform.tfvars` で注入。
 4. リソースは `for_each = local.<新設定>` でリポ単位に展開（1設定種別 = 1リソース）。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
@@ -254,7 +251,7 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 | 症状 | 原因・対処 |
 |---|---|
 | `403 Resource not accessible by integration` | App に対象リポの **Administration: Read and write** が無い、対象リポが **インストール対象に含まれていない**、または provider の `owner` 未設定。手順3（権限・Selected repositories）を見直す |
-| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`locals.tf` を実態へ寄せる |
+| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`branch_protection.tf` を実態へ寄せる |
 | provider のスキーマエラー | provider バージョン差異。`~> 6.0` 固定と `.terraform.lock.hcl` のコミットを確認 |
 | `Error: Required token could not be found` 等の認証エラー | App 変数3本（`GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE`）が HCP workspace に未登録、または `providers.tf` の `app_auth {}` ブロック欠落。手順4を見直す |
 | ローカル `terraform validate` で `app_auth` の `installation_id is required` | App 認証情報は環境変数から解決されるため、ローカル validate には `GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE` の export が必要（Remote 実行では HCP が注入するので不要） |
