@@ -6,6 +6,8 @@
 
 改訂範囲: 決定 §1（リソース構造）および §1 に紐づく根拠・代替案・影響セクション。決定 §2（topics 方針）／決定 §3（`lifecycle.ignore_changes` 範囲）／付録 A・B は変更していない。
 
+本改訂により [ADR 0002](0002-branch-protection-preset-merge-pattern.md)（`branch_protection` の `merge()` + null 除去パターン統一、2026-06-21 承認）は superseded となる（§1「適用範囲」が `repositories` 変数全体に及び、`branch_protection` 側も同じ variable defaults パターンへ統一する方針となるため）。
+
 ## コンテキスト
 
 親 Issue [#6](https://github.com/kuchita-el/github-config/issues/6) で `github_repository` リソースによるプリセット管理を導入するにあたり、後続の feature 子Issue（[#16](https://github.com/kuchita-el/github-config/issues/16) セキュリティ系 / [#17](https://github.com/kuchita-el/github-config/issues/17) 開発プロセス系）が依存する設計判断を spike で先行確定する必要がある。本 ADR は [Issue #15](https://github.com/kuchita-el/github-config/issues/15) の成果物として、以下3点を決定する。
@@ -42,6 +44,8 @@
 > - `local.*_preset` + `merge()` / null sentinel パターンは `map(any)` 化で型安全性を喪失する。`optional(type, default)` を使えばプリセット値を variable のデフォルトとして持たせ、null チェック・merge を不要にしながら完全な型安全性を保てる。
 >
 > 旧採用案（案 B'）と新方針との対比は「代替案」セクションに残す。
+>
+> **ADR 0002 との関係**: 本改訂と並行して [ADR 0002](0002-branch-protection-preset-merge-pattern.md)（[Issue #43](https://github.com/kuchita-el/github-config/issues/43)、2026-06-21 承認）が `branch_protection` を旧 ternary パターンから `merge()` + null 除去パターンへ統一していた。本改訂が採用する `optional(type, default)` は `merge()` パターンの上位解（型安全性と合成パターン一本化を同時達成）であり、本改訂の「適用範囲」が `repositories` 変数全体に及ぶことから ADR 0002 は本改訂で **superseded** となる（ADR 0002 のステータスを Superseded へ更新済）。`branch_protection.tf` の `merge()` パターンから variable defaults への実コード移行は別 Issue で実施する。
 
 - `github_repository` resource ブロックは `repository.tf` 1枚に集約する。preset を動機軸別ファイル（`repository_security.tf` / `repository_process.tf`）の locals に分割する旧方針（案 B'）は採用しない。
 - preset 値は **`variables.tf` の `repositories` 変数のフィールドデフォルト** として `optional(type, default)` で持たせる。`local.*_preset` + `merge()` / null sentinel / ternary パターンは採用しない。
@@ -67,7 +71,7 @@
   }
   ```
 
-- **適用範囲（branch protection override 含む）**: 本決定の variable defaults パターンは `repositories` 変数**全体**に適用する。現行 `branch_protection.tf` の `ovr.X != null ? ovr.X : preset.X` ternary パターンも同方針へ統一する（`variables.tf` 側で preset 値をデフォルト化、`branch_protection.tf` 側は ternary を除去し `var.repositories[each.key].X` を直接参照）。実コード変更は本 ADR のスコープ外であり、別 Issue で実施する（`.tf` 変更は本改訂に含めない）。
+- **適用範囲（branch protection override 含む）**: 本決定の variable defaults パターンは `repositories` 変数**全体**に適用する。現行 `branch_protection.tf` の `merge()` + null 除去パターン（ADR 0002 で確定）も同方針へ統一する（`variables.tf` 側で preset 値をデフォルト化、`branch_protection.tf` 側は `local.branch_protection_preset` / `merge()` 合成式を除去し `var.repositories[each.key].X` を直接参照）。実コード変更は本 ADR のスコープ外であり、別 Issue で実施する（`.tf` 変更は本改訂に含めない）。これにより ADR 0002 は本改訂で superseded となる。
 - **既存 `branch_protection.tf` との一貫性**: 改訂後は `branch_protection.tf` の「1ファイル=1リソース種別 + variable defaults」レイアウトと同一パターンになる。動機軸別ファイル分割という独自パターンを廃止し、既存規範および Terraform 公式スタイルガイド（[#59](https://github.com/kuchita-el/github-config/issues/59)）の `locals.tf` 集約規約と整合する。
 
 ### 2. `topics` の SoT 化方針: `github_repository.topics` 属性で管理
@@ -160,15 +164,15 @@
 - **per-repo override**: 差分のある3属性（`delete_branch_on_merge` / `description` / `has_wiki`）を `terraform.tfvars` の対応リポエントリに追記する。preset と一致する属性は記述しない（型レベルで default が適用される）。
 - **着手順序の制約**: #16 が `repository.tf` の resource ブロックと `variables.tf` のセキュリティ系属性宣言を先に配置するため、#17 は #16 のマージ後に着手する（#16 → #17 の直列依存）。
 
-### 既存 `branch_protection.tf` への波及（範囲外）
+### 既存 `branch_protection.tf` への波及（範囲外、ADR 0002 を supersede）
 
-決定 §1 の variable defaults パターンは `repositories` 変数全体に適用するため、現行 `branch_protection.tf` の `ovr.X != null ? ovr.X : preset.X` ternary パターンも同方針へ統一する必要がある。ただし本 ADR は方針宣言のみで、**実コード変更は本 ADR のスコープ外**であり別 Issue で実施する。実装時は以下を行う:
+決定 §1 の variable defaults パターンは `repositories` 変数全体に適用するため、現行 `branch_protection.tf`（ADR 0002 で確定した `merge()` + null 除去 + `contains` フィルタパターン）も同方針へ統一する必要がある。ただし本 ADR は方針宣言のみで、**実コード変更は本 ADR のスコープ外**であり別 Issue で実施する。実装時は以下を行う:
 
 - `variables.tf` の `repositories` 型に branch protection 系属性を `optional(type, default)` で再宣言（現行は `optional(type)` のみで default が無い）し、`branch_protection.tf` の `local.branch_protection_preset` の値をそのまま default として移植する。
-- `branch_protection.tf` の `ovr.X != null ? ovr.X : local.branch_protection_preset.X` ternary 群を全削除し、`var.repositories[each.key].X` 直接参照へ書き換える。
-- `local.branch_protection_preset` および `local.branch_protection` for 式は削除可能（`name` / `target` 等の固定値は resource ブロックに直接記述するか、`local` を1つだけ残す）。
+- `branch_protection.tf` の `local.branch_protection` for 式（`merge(local.branch_protection_preset, { for k, v in ovr : k => v if v != null && contains(...) }, { status_check_* = ... })` 構造）を全削除し、`var.repositories[each.key].X` 直接参照へ書き換える。`status_check_contexts` / `status_check_integration_id` は既に `optional` 宣言済みなので、特殊扱い（`contains` フィルタ + 第3引数明示注入）が不要になる。
+- `local.branch_protection_preset` および `local.branch_protection` for 式は削除可能（`name` / `target` 等の固定値は resource ブロックに直接記述する）。
 
-切り替えは `terraform plan` で "No changes" を確認しながら段階的に進める。
+切り替えは `terraform plan` で "No changes" を確認しながら段階的に進める。実コード変更後は ADR 0002 も superseded ステータスのまま履歴として残す（削除しない）。
 
 ### import 戦略への影響
 
