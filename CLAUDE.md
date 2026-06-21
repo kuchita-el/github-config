@@ -41,11 +41,13 @@ App PEM 漏洩時のブラストradius は permission scope で決まる。Conte
 
 新規ドキュメントを作成する際は以下の配置に従うこと。ルート直下や任意ディレクトリに散乱させない。
 
-| 種別 | 配置 |
-|---|---|
-| 設計判断記録（ADR） | `docs/adr/NNNN-<slug>.md`（連番） |
-| Issue 実装プラン | `docs/plans/issue-<番号>.md` |
-| spike / 調査ノート | `docs/spike/<slug>.md` |
-| サブエージェント定義 | `docs/agents/<name>/` |
+| 種別 | 配置 | Git 追跡 |
+|---|---|---|
+| 設計判断記録（ADR） | `docs/adr/NNNN-<slug>.md`（連番） | tracked |
+| Issue 実装プラン | `docs/plans/issue-<番号>.md` | **untracked**（`docs/plans/.gitignore` でコミット対象外、PR #40） |
+| spike / 調査ノート | `docs/spike/<slug>.md` | tracked |
+| サブエージェント定義 | `docs/agents/<name>/` | tracked |
+
+`docs/plans/` 配下は `.gitignore` でコミット対象外であり、リポには `docs/plans/.gitignore` のみが含まれる。プランファイルはローカル参照専用で、`git add` しても無視される。
 
 配置を統一することで、Claude も人間も目的別に参照先を一意に特定できる。散在させると関連文書を新規セッションで見落とし、ADR と矛盾する判断を独立に下すリスクが上がる。
