@@ -26,7 +26,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 | ファイル | 役割 |
 |---|---|
-| `versions.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
+| `terraform.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
 | `branch_protection.tf` | `branch_protection_preset`（既定）とリポ別 override の合成ロジック + Ruleset リソース（`for_each` 展開） |
@@ -59,10 +59,10 @@ terraform version   # >= 1.6 であること
 ### 2. HCP Terraform アカウント・組織・ワークスペースの作成
 
 1. https://app.terraform.io にサインアップ（無料tier）。
-2. **Organization** を作成（名前は任意。例: `kuchita-el`）。← この名前を後で `versions.tf` に記入する。
+2. **Organization** を作成（名前は任意。例: `kuchita-el`）。← この名前を後で `terraform.tf` に記入する。
 3. **Workspace** を作成:
    - Type: **CLI-Driven Workflow** を選択
-   - 名前: `github-config`（`versions.tf` の `workspaces { name = ... }` と一致させる）
+   - 名前: `github-config`（`terraform.tf` の `workspaces { name = ... }` と一致させる）
 4. 作成した Workspace の **Settings → General** で **Execution Mode = Remote** を確認（既定で Remote）。
 
 ### 3. GitHub App の作成・インストール・秘密鍵の生成
@@ -97,7 +97,7 @@ Workspace → **Variables** → 以下3つを **Environment variable** で追加
 
 ### 5. organization 名を記入
 
-`versions.tf` の `organization = "REPLACE_WITH_YOUR_HCP_ORG"` を手順2で作った組織名に置換してコミットする。
+`terraform.tf` の `organization = "REPLACE_WITH_YOUR_HCP_ORG"` を手順2で作った組織名に置換してコミットする。
 
 ### 6. 初期化
 
@@ -268,7 +268,7 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 | provider のスキーマエラー | provider バージョン差異。`~> 6.0` 固定と `.terraform.lock.hcl` のコミットを確認 |
 | `Error: Required token could not be found` 等の認証エラー | App 変数3本（`GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE`）が HCP workspace に未登録、または `providers.tf` の `app_auth {}` ブロック欠落。手順4を見直す |
 | ローカル `terraform validate` で `app_auth` の `installation_id is required` | App 認証情報は環境変数から解決されるため、ローカル validate には `GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE` の export が必要（Remote 実行では HCP が注入するので不要） |
-| ローカルに `terraform.tfstate` ができる | `cloud {}` が効いていない。`versions.tf` の organization/workspace 名と `terraform init` を確認 |
+| ローカルに `terraform.tfstate` ができる | `cloud {}` が効いていない。`terraform.tf` の organization/workspace 名と `terraform init` を確認 |
 
 ### PAT → App 切替・ロールバック
 

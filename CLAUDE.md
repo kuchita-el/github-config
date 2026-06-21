@@ -6,7 +6,7 @@
 
 ## 1. HCP リモート実行が SoT、ローカル apply は禁止
 
-`terraform plan` / `terraform apply` は HCP Terraform Workspace（organization `kuchita-el` / workspace `github-config`）の Remote 実行で完結させること。`versions.tf` の `cloud {}` ブロックを外したり、別の `backend` に差し替えたりしてローカル state で apply してはならない。
+`terraform plan` / `terraform apply` は HCP Terraform Workspace（organization `kuchita-el` / workspace `github-config`）の Remote 実行で完結させること。`terraform.tf` の `cloud {}` ブロックを外したり、別の `backend` に差し替えたりしてローカル state で apply してはならない。
 
 違反すると HCP 上の正規 state と乖離したローカル state が生成され、以降の Remote 実行と drift し復旧コストが極めて高い。
 
