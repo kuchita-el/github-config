@@ -14,6 +14,9 @@ variable "repositories" {
 
     github_repository の属性（visibility を除く）は optional の default をプリセット値とし、
     差分のあるリポジトリだけが値を指定する（ADR 0001 §1）。visibility は全リポジトリで必須。
+
+    profile（類型プロファイル、ADR 0004 §7）も全リポジトリで必須。類型ごとの設定既定値を
+    参照する resource は未実装で、現時点では宣言と検証のみ行う。
   EOT
 
   type = map(object({
@@ -21,6 +24,12 @@ variable "repositories" {
     # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、
     # default を持たせない。
     visibility = string
+
+    # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。
+    # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。
+    # 類型ごとの設定既定値（local.<concern>_profile_defaults）を消費する resource は本 Issue では
+    # まだ無く、ここでは宣言と検証だけを行う。
+    profile = string
 
     # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。
     # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。
@@ -68,5 +77,14 @@ variable "repositories" {
       length(r.status_check_contexts) == 0 || r.status_check_integration_id != null
     ])
     error_message = "status_check_integration_id is required when status_check_contexts is non-empty."
+  }
+
+  # profile は ADR 0004 §7 が定める4つの識別子以外を拒否する。
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      contains(["distribution", "infra", "app", "local_config"], r.profile)
+    ])
+    error_message = "profile must be one of: distribution, infra, app, local_config (ADR 0004 §7)."
   }
 }
