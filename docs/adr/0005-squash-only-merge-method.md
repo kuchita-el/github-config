@@ -4,8 +4,6 @@
 
 承認（2026-09-26、[#70](https://github.com/kuchita-el/github-config/issues/70)）
 
-影響節の per-repo の上書き機構の記述を、[#32](https://github.com/kuchita-el/github-config/issues/32)（[ADR 0004](0004-terraform-module-structure-policy.md)）で改訂した（2026-09-26）。
-
 ## コンテキスト
 
 コーディングエージェントが PR を起票する運用が常態になり、マージ方式の選択が持つ意味が変わった。エージェントは試行錯誤のコミット（レビュー指摘対応・typo・テスト追加）を人間より細かく速く積むため、それらが既定ブランチへそのまま流入すると履歴のノイズになる。一方で PR 単位に潰せば、1 コミット = 1 タスクとなり revert / bisect の単位が明快になる。潰した結果が「revert 単位として粗すぎる」と感じたときは、それ自体が PR を小さく保てていないシグナルとして機能する。
@@ -63,7 +61,7 @@ Issue #70 のコメント（2026-09-26）での検討の結果、見送りとし
 
 - 管理対象4リポジトリ全件（`gachanuma` / `github-config` / `claude-shared-skills` / `dependabot-triage-action`）に及ぶ。
 - `github-config` 自身が管理対象に含まれるため、本 PR の Apply 完了以降は本リポの PR（本 Issue を実装する PR 自身は除く。既存オープン PR [#19](https://github.com/kuchita-el/github-config/pull/19) を含む）も squash でしかマージできなくなる。
-- `allowed_merge_methods` は [ADR 0004](0004-terraform-module-structure-policy.md) の全リポ共通値にあたる。個別のリポジトリで本方針から外す場合は、ADR 0004 の例外台帳への登録を要する。`variables.tf` に残る未使用の上書きフィールド（`allowed_merge_methods` を含む）は、branch_protection の移行 Issue（ADR 0004 の影響）で削除する。
+- 既存の per-repo override 機構（`variables.tf` の `allowed_merge_methods` optional 属性）は変更しないため、個別リポジトリで本方針から外す余地は残る。
 - リポジトリレベルのマージ設定（`allow_squash_merge` 等）は本 Issue のスコープ外であり Terraform 管理外のまま残る。両層が揃うのは [#17](https://github.com/kuchita-el/github-config/issues/17) の完了時点。
 
 ### 付録（事前確認結果）

@@ -168,14 +168,17 @@ Agent(
 
 #### 観点 6: preset 上書き経路の一貫性（preset 合成漏れ）
 
-ADR 0001 が定義する 2 種のフォールバックパターンを並行有効として扱う。
+2 種のパターンを並行有効として扱う。検出条件 A は `github_repository` の属性（ADR 0001 §1）、検出条件 B は `branch_protection.tf` を対象とする。
 
-##### 検出条件 A: `merge()` パターン（ADR 0001 §1）
+##### 検出条件 A: variable defaults パターン（ADR 0001 §1）
 
-- ADR 0001 §1 が定義する合成式 `merge(<security_preset>, <process_preset>, { for k, v in var.repositories[each.key] : k => v if v != null })` から:
-  - (a) 片方の preset（`repository_security_preset` または `repository_process_preset`）が欠落している
-  - (b) null 除去 comprehension（`{ for k, v in ... if v != null }`）が抜けて `null` 上書きを許す形になっている
-- **指摘文言テンプレ**: 「`<file>:<line>` の `merge()` 呼び出しが ADR 0001 §1（`docs/adr/0001-repository-resource-structure.md`）の合成パターンから逸脱しています: `<(a)片 preset 欠落 | (b)null 除去欠落>`。ADR 0001 §1 通りの `merge(local.repository_security_preset, local.repository_process_preset, { for k, v in var.repositories[each.key] : k => v if v != null })` 形式に修正してください。」
+ADR 0001 §1 は、`github_repository` の preset 値を `variables.tf` の `repositories` の `optional(type, default)` の default として持たせ、`repository.tf` の resource ブロックから `var.repositories[each.key].<attr>`（または `each.value.<attr>`）を直接参照する形を定めている。PR 差分がこれに対して以下のいずれかに当たる場合に発火する。
+
+- (a) **合成の再導入**: `github_repository` の属性値を、locals の preset（`local.*_preset` 等）・`merge()`・null 除去 comprehension（`{ for k, v in ... if v != null }`）・三項演算子（`ovr.X != null ? ovr.X : ...`）で合成している
+- (b) **preset 値の欠落**: `github_repository` の属性に対応する `repositories` のフィールドが `optional(type)`（default なし）で宣言されている。未指定のリポでは null が渡り、provider 既定値が暗黙に適用される。ADR 0001 の preset 値が null の属性（`description` / `homepage` 等）に限り、default の省略を許容する
+- (c) **`visibility` の optional 化**: `visibility` が `optional(...)` で宣言されている（ADR 0001 §影響 #16 により型レベルで必須）
+
+- **指摘文言テンプレ**: 「`<file>:<line>` が ADR 0001 §1（`docs/adr/0001-repository-resource-structure.md`）の variable defaults パターンから逸脱しています: `<(a)合成の再導入 | (b)preset 値の欠落 | (c)visibility の optional 化>`。preset 値は `variables.tf` の `repositories` に `optional(<type>, <preset 値>)` で宣言し、resource ブロックからは `var.repositories[each.key].<attr>` を直接参照してください（`visibility` は `optional` にしない）。」
 - **重要度**: blocker
 
 ##### 検出条件 B: 三項演算子パターン（`branch_protection.tf` の effective map セレクター式 既存パターン）
@@ -196,12 +199,12 @@ ADR 0001 が定義する 2 種のフォールバックパターンを並行有�
 
 ##### 入出力例（共通）
 
-- 陽性（A）: `merge(local.repository_process_preset, ...)`（security preset 欠落）または `merge(..., var.repositories[each.key])`（null 除去なし） → 観点 6 blocker 発火。
-- 陰性（A）: ADR 0001 §1 通りの形式 → 発火しない。
+- 陽性（A）: `has_wiki = local.repository_settings[each.key].has_wiki`（locals の `merge()` 合成を経由）、`has_wiki = optional(bool)`（default なし）、`visibility = optional(string, "public")` → 観点 6 blocker 発火。
+- 陰性（A）: `has_wiki = optional(bool, false)` を宣言し、resource で `has_wiki = var.repositories[each.key].has_wiki` と直接参照 → 発火しない。
 - 陽性（B）: 新規 attribute を `enforcement = ovr.enforcement` で代入（フォールバックなし） → 観点 6 blocker 発火。
 - 陰性（B）: `enforcement = ovr.enforcement != null ? ovr.enforcement : local.branch_protection_preset.enforcement` → 発火しない。
 
-**注**: 検出条件 A の `repository.tf` / `repository_security.tf` / `repository_process.tf` / `repository_security_preset` / `repository_process_preset` は現リポに未導入。本観点 A は Issue #16/#17 で導入される PR を対象とする。検出条件 B は現リポの `branch_protection` に既に適用済み。
+**注**: 検出条件 A は現リポの `repository.tf` / `variables.tf`（Issue #16 で導入）に適用済み。検出条件 B は現リポの `branch_protection` に適用済み。
 
 #### 観点 7: App 権限境界違反検出
 

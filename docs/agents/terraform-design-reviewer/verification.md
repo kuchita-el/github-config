@@ -30,8 +30,8 @@ Issue #20 の AC2/3/4 が要求する「reviewer が観点 X を期待通り blo
 | 4 | 境界 (count=1) | `04-for-each-vs-count/boundary-count-one.tf.example` | (発火しない) | 発火なし | ✅ | ✅ | PASS |
 | 5 | 陽性 | `05-hardcoded-values/positive.tf.example` | suggestion | suggestion | ✅ | ✅ | PASS |
 | 5 | 陰性 | `05-hardcoded-values/negative.tf.example` | (発火しない) | 発火なし | ✅ | ✅ | PASS |
-| 6 | 陽性 A (merge) | `06-preset-merge/positive-merge.tf.example` | blocker | blocker | ✅ | ✅ | PASS |
-| 6 | 陰性 A (merge) | `06-preset-merge/negative-merge.tf.example` | (発火しない) | 発火なし | ✅ | ✅ | PASS |
+| 6 | 陽性 A (defaults) ※ | `06-preset-merge/positive-defaults.tf.example` | blocker | blocker | ✅ | ✅ | PASS |
+| 6 | 陰性 A (defaults) ※ | `06-preset-merge/negative-defaults.tf.example` | (発火しない) | 発火なし | ✅ | ✅ | PASS |
 | 6 | 陽性 B (ternary) | `06-preset-merge/positive-ternary.tf.example` | blocker | blocker | ✅ | ✅ | PASS |
 | 6 | 陰性 B (ternary) | `06-preset-merge/negative-ternary.tf.example` | (発火しない) | 発火なし | ✅ | ✅ | PASS |
 | 7 | 陽性 1 (secret) | `07-app-permission-boundary/positive-secret.tf.example` | blocker | blocker | ✅ | ✅ | PASS |
@@ -76,9 +76,10 @@ Issue #20 の AC2/3/4 が要求する「reviewer が観点 X を期待通り blo
 
 ### 観点 6（preset 合成）
 
-- 陽性 A (merge): security preset 欠落 + null 除去欠落の二重逸脱 → blocker 発火
+- 陽性 A (defaults) ※: locals の preset + `merge()` による合成 (a)・default の無い `has_wiki = optional(bool)` (b)・`visibility` の optional 化 (c) の3点 → いずれも blocker 発火
 - 陽性 B (ternary): `ovr.X` 直接代入でフォールバック欠落 → blocker 発火
-- 陰性 A/B: ADR 0001 §1 通りの merge 形式 / `branch_protection.tf` の effective map セレクター式（三項演算子）通りの定義 → いずれも発火なし
+- 陰性 A/B: ADR 0001 §1 通りの variable defaults 形式（preset 値が null の `description` の default 省略を含む）/ `branch_protection.tf` の effective map セレクター式（三項演算子）通りの定義 → いずれも発火なし
+- ※ 検出条件 A は ADR 0001 §1 の改訂（#63、`merge()` 合成 → variable defaults）に合わせて Issue #16 で定義し直し、フィクスチャも差し替えた。A の2ケースは差し替え後の定義で再試験した結果（代理試験、各1回、`expected.md` は評価者に渡さず判定後に照合）。改訂前の `merge()` パターンでの結果は git 履歴を参照
 
 ### 観点 7（App 権限境界）
 
@@ -122,7 +123,7 @@ PR #31 マージ後の Claude Code セッションで `subagent_type: "terraform
 
 - **試行回数の限界**: 本実装は各フィクスチャ 1 回試行に留めた。LLM 出力の確率的変動への対処として、観点 # と重大度の安定性は将来の繰り返し検証で確認する。本実装段階では 1 回で観点 # と重大度が reviewer 定義通りに判定されることを確認した。
 - **検証時のサブエージェント種別**: 上記「実機起動エビデンス」節の通り、観点 1 陽性 1 ケースで実機 `Agent(subagent_type: "terraform-design-reviewer")` 起動を確認済み。残り 21 ケース（観点 1 陰性〜観点 8 未提供）の実機補強は将来の繰り返し検証で対応する。本表（照合表）の結果は依然として代理試験ベース。
-- **`github_repository` 系の現リポ未実装**: 観点 3 / 観点 6 (A) のフィクスチャは ADR 0001 §1/§3 の仕様から組み立てている。Issue #16/#17 で `github_repository` 実装が入り次第、現リポの実コードを参照する陰性ケースに置換できる。
+- **`github_repository` 系のフィクスチャ**: 観点 3 / 観点 6 (A) のフィクスチャは ADR 0001 §1/§3 の仕様から組み立てている。Issue #16 で `repository.tf` が入ったため、現リポの実コードを参照する陰性ケースに置換できる。
 
 ## 結論
 
