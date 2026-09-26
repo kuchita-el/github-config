@@ -17,8 +17,10 @@
 terraform.tfvars (管理対象リポ + リポ別override)
         │
         ▼
-branch_protection.tf  branch_protection_preset(全リポ共通の既定) + セレクター式（!= null ? : ）で override 合成
+branch_protection.tf  branch_protection_preset(全リポ共通の既定) と override を merge() で合成
                       github_repository_ruleset を for_each でリポ単位に展開
+repository.tf         variables.tf の optional default(全リポ共通の既定) を直接参照
+                      github_repository を for_each でリポ単位に展開
         │
         ▼
 GitHub API (App 認証)        state ⇄ HCP Terraform workspace
@@ -240,12 +242,12 @@ Agent(
 将来 labels / dependabot / merge settings 等を足すときのパターン:
 
 1. 新しい設定種別ごとに `*.tf` ファイルを1枚追加（例: `repository_labels.tf`）。
-2. 全リポ共通の既定値は当該 `*.tf` 冒頭に `local.<resource>_preset` として定義（ADR 0001）。
-3. リポ別差分は `variables.tf` の `repositories` object に optional 属性を足し、`terraform.tfvars` で注入。
-4. リソースは `for_each = local.<新設定>` でリポ単位に展開（1設定種別 = 1リソース）。
+2. 全リポ共通の既定値は `variables.tf` の `repositories` object に `optional(type, default)` の default として宣言（ADR 0001 §1）。
+3. リポ別差分は `terraform.tfvars` の該当リポで当該属性を上書き。
+4. リソースは `for_each = var.repositories` でリポ単位に展開し、属性は `var.repositories[each.key].<attr>` を直接参照（1設定種別 = 1リソース）。locals での preset 定義や `merge()` による合成は行わない。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
 
-> `github_repository`（`repository.tf`）は preset を locals に置かず、`variables.tf` の `repositories` の `optional(type, default)` の default として持つ。resource ブロックは `var.repositories[each.key].<attr>` を直接参照し、`merge()` による合成は行わない。詳細は [ADR 0001](docs/adr/0001-repository-resource-structure.md) §1 を参照。
+> `repository.tf`（`github_repository`）はこのパターンに従う。`branch_protection.tf` は `local.branch_protection_preset` + `merge()` の旧パターンのままで、同パターンへの移行は ADR 0001 §影響「既存 `branch_protection.tf` への波及」で別 Issue とされている。
 
 ---
 

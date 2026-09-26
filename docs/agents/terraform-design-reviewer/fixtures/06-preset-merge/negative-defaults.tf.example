@@ -1,0 +1,32 @@
+# Fixture (negative, A: variable defaults パターン): ADR 0001 §1 通りの形。
+# 期待: 観点 6 は発火しない（A）。
+
+variable "repositories" {
+  type = map(object({
+    # 必須（default なし）。
+    visibility = string
+
+    # preset 値を default として宣言する。差分のあるリポだけが tfvars で上書きする。
+    has_wiki        = optional(bool, false)
+    has_discussions = optional(bool, false)
+
+    # preset 値が null の属性は default の省略を許容する。
+    description = optional(string)
+  }))
+}
+
+resource "github_repository" "this" {
+  for_each = var.repositories
+
+  name       = each.key
+  visibility = each.value.visibility
+
+  # locals / merge() を介さず直接参照する。
+  has_wiki        = var.repositories[each.key].has_wiki
+  has_discussions = var.repositories[each.key].has_discussions
+  description     = var.repositories[each.key].description
+
+  lifecycle {
+    ignore_changes = [visibility, archived]
+  }
+}
