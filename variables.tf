@@ -39,6 +39,11 @@ variable "repositories" {
       archived = optional(bool)
       # リポジトリの説明文。null は説明文なし。
       description = optional(string)
+      # リポジトリのホームページ URL（About 欄の Website）。null はホームページなし。
+      homepage_url = optional(string)
+      # リポジトリの topics（ADR 0001 §2: github_repository.topics 属性で管理する）。
+      # 空リストは topics なし。英小文字・数字・ハイフンのみ、50 文字以内（provider の検証）。
+      topics = optional(set(string), [])
     }), {})
 
     # github_repository_ruleset.branch_protection（branch_protection.tf）のリポ固有値。
