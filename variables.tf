@@ -50,6 +50,14 @@ variable "repositories" {
     has_wiki        = optional(bool, false)
     has_projects    = optional(bool, true)
     has_discussions = optional(bool, false)
+
+    # github_repository の開発プロセス系属性のうち、#16 に前倒しするもの（ADR 0001 §影響 #16）。
+    # provider はこれらを宣言しないと空値（false / null）へ変更する plan を出すため、import を no-op に
+    # するには #16 の時点で実態値の宣言が要る。default は ADR 0001 §影響 #17 の preset 値。
+    has_issues             = optional(bool, true)
+    delete_branch_on_merge = optional(bool, false)
+    # preset 値が null のため default を省略する（null = 説明文なし）。
+    description = optional(string)
   }))
 
   # Enforce: if a repo declares status check contexts, it must also declare the

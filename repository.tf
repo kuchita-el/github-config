@@ -24,8 +24,12 @@ resource "github_repository" "this" {
   has_projects     = each.value.has_projects
   has_discussions  = each.value.has_discussions
 
-  # Process-axis attributes are added by Issue #17. Until then they inherit
-  # provider defaults.
+  # Process-axis attributes pulled forward from Issue #17: the provider plans
+  # them to false/null when unset, so they must be declared for the import to
+  # be a no-op. The remaining process-axis attributes are added by Issue #17.
+  has_issues             = each.value.has_issues
+  delete_branch_on_merge = each.value.delete_branch_on_merge
+  description            = each.value.description
 
   lifecycle {
     # Drift protection: UI/API changes to these attributes do not surface as plan
