@@ -30,9 +30,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
 | `branch_protection.tf` | `branch_protection_preset`（既定）とリポ別 override の合成ロジック + Ruleset リソース（`for_each` 展開） |
-| `repository.tf` | `github_repository` リソース（`for_each` 展開）。preset 合成 + `lifecycle.ignore_changes` |
-| `repository_security.tf` | セキュリティ系 preset（`local.repository_security_preset`）。ADR 0001 §1 動機軸分割 |
-| `repository_process.tf` | 開発プロセス系 preset（`local.repository_process_preset`）。Issue #17 で値を埋める |
+| `repository.tf` | `github_repository` リソース（`for_each` 展開）。属性は `var.repositories` を直接参照 + `lifecycle.ignore_changes` |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -55,7 +53,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | 管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。 | `string` | n/a | yes |
-| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリは branch\_protection.tf で定義したブランチ保護プリセットを上書きする。<br/>属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は<br/>必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、<br/>そのためプリセットではなくここに置く。 | <pre>map(object({<br/>    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>    status_check_contexts = optional(list(string), [])<br/>    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>    # status_check_contexts が空でない場合は必須。<br/>    status_check_integration_id = optional(number)<br/><br/>    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリは branch\_protection.tf で定義したブランチ保護プリセットを上書きする。<br/>属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は<br/>必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、<br/>そのためプリセットではなくここに置く。<br/><br/>github\_repository の属性（visibility を除く）は optional の default をプリセット値とし、<br/>差分のあるリポジトリだけが値を指定する（ADR 0001 §1）。visibility は全リポジトリで必須。 | <pre>map(object({<br/>    # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない<br/>    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、<br/>    # default を持たせない。<br/>    visibility = string<br/><br/>    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>    status_check_contexts = optional(list(string), [])<br/>    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>    # status_check_contexts が空でない場合は必須。<br/>    status_check_integration_id = optional(number)<br/><br/>    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/><br/>    # github_repository のセキュリティ系属性（ADR 0001 §1 / Issue #16）。<br/>    # default がプリセット値（管理対象4リポの共通値、ADR 0001 付録 A）で、リポジトリ単位で上書きできる。<br/>    # 書き込み可能な状態を既定とする。lifecycle.ignore_changes で drift から保護する。<br/>    archived = optional(bool, false)<br/>    # 条件を満たした PR が人のレビューを経ずにマージされる経路を既定で閉じる。<br/>    allow_auto_merge = optional(bool, false)<br/>    # wiki / projects / discussions は外部からの書き込み面を広げるため、実態に合わせつつ既定で絞る。<br/>    has_wiki        = optional(bool, false)<br/>    has_projects    = optional(bool, true)<br/>    has_discussions = optional(bool, false)<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 
@@ -247,7 +245,7 @@ Agent(
 4. リソースは `for_each = local.<新設定>` でリポ単位に展開（1設定種別 = 1リソース）。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
 
-> ただし、`github_repository` のように **単一リソースで複数の動機軸（セキュリティ / 開発プロセス等）の属性を持つ**ケースは別パターンを採用する。1リソース＝1ファイルの上で、preset を動機軸ごとに locals 分割する（`repository_security.tf` / `repository_process.tf`）。詳細は [ADR 0001](docs/adr/0001-repository-resource-structure.md) を参照。
+> `github_repository`（`repository.tf`）は preset を locals に置かず、`variables.tf` の `repositories` の `optional(type, default)` の default として持つ。resource ブロックは `var.repositories[each.key].<attr>` を直接参照し、`merge()` による合成は行わない。詳細は [ADR 0001](docs/adr/0001-repository-resource-structure.md) §1 を参照。
 
 ---
 

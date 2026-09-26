@@ -11,12 +11,15 @@ variable "repositories" {
     属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は
     必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、
     そのためプリセットではなくここに置く。
+
+    github_repository の属性（visibility を除く）は optional の default をプリセット値とし、
+    差分のあるリポジトリだけが値を指定する（ADR 0001 §1）。visibility は全リポジトリで必須。
   EOT
 
   type = map(object({
     # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない
-    # （ADR 0001 §3 / Issue #16）。プリセット編集による意図しない変更を防ぐため、
-    # repository_security_preset には含めない。
+    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、
+    # default を持たせない。
     visibility = string
 
     # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。
@@ -37,14 +40,16 @@ variable "repositories" {
     strict_required_status_checks_policy = optional(bool)
     do_not_enforce_on_create             = optional(bool)
 
-    # リポジトリ単位での repository_security_preset 上書き（任意）。null はプリセットの値を
-    # 引き継ぐ（ADR 0001 §1 / Issue #16）。merge() の前に null を除去するため、未指定の値が
-    # プリセットの値を上書きすることはない。
-    archived         = optional(bool)
-    allow_auto_merge = optional(bool)
-    has_wiki         = optional(bool)
-    has_projects     = optional(bool)
-    has_discussions  = optional(bool)
+    # github_repository のセキュリティ系属性（ADR 0001 §1 / Issue #16）。
+    # default がプリセット値（管理対象4リポの共通値、ADR 0001 付録 A）で、リポジトリ単位で上書きできる。
+    # 書き込み可能な状態を既定とする。lifecycle.ignore_changes で drift から保護する。
+    archived = optional(bool, false)
+    # 条件を満たした PR が人のレビューを経ずにマージされる経路を既定で閉じる。
+    allow_auto_merge = optional(bool, false)
+    # wiki / projects / discussions は外部からの書き込み面を広げるため、実態に合わせつつ既定で絞る。
+    has_wiki        = optional(bool, false)
+    has_projects    = optional(bool, true)
+    has_discussions = optional(bool, false)
   }))
 
   # Enforce: if a repo declares status check contexts, it must also declare the
