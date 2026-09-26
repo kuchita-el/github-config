@@ -59,6 +59,7 @@ action を通じた被害には、次の2つの経路がある。
 
 - 全リポ共通値は `actions_permissions.tf` 冒頭の `local.actions_permissions_preset` に置く。類型決定値にあたる属性は無い。
 - `patterns_allowed` は `repositories.<k>.actions_permissions.patterns_allowed` に置き、既定値は空リストとする（ADR 0004 §4・§5）。
+- ADR 0004 §7 は Actions 権限を類型決定値の主な例に挙げていたが、検討の結果、類型で値を分ける属性は無かった（代替案）。
 - `patterns_allowed` 以外の属性に per-repo のフィールドは設けない。特定のリポで外す必要が生じた場合は、ADR 0004 §4 の例外台帳の手続きに従う。
 
 ### 2. 取り込み
@@ -116,11 +117,13 @@ action を通じた被害には、次の2つの経路がある。
 
 ### 複合 action の内部参照で拒否された `gachanuma` のために、`sha_pinning_required` を一時的に `false` に戻す
 
-`gachanuma` の `deploy.yml` を、action の更新を待たずに動かせる（帰結）。
+`gachanuma` の `deploy.yml` を、action の更新を待たずに動かせる。
 
 **採用しなかった理由**: GitHub 側の値が決定値と食い違い、取り込みの plan が no-op になる前提（決定 §2）が崩れる。
 
 ### `gachanuma` の `sha_pinning_required` を例外台帳に登録して `false` にする
+
+上流の action の更新を待たずに、`gachanuma` だけを外せる。
 
 **採用しなかった理由**: 上流の action の更新で解消する差であり、恒常的でない。ADR 0004 §4 の登録の要件（差が恒常的である）を満たさない。
 
@@ -177,6 +180,7 @@ action を通じた被害には、次の2つの経路がある。
 - 区分を変える場合（例: `sha_pinning_required` を類型決定値へ移す）も、ADR 0004 §4 のとおり state のアドレスは変わらない。
 - 取り込みの前に GitHub 側で変えた値は、本 ADR を戻しても戻らない。戻す場合は、コンテキストの表の変更前の値を使う。
 - 決定 §3 の SHA 参照と Dependabot の更新は各リポのファイルにあり、本リポの変更では戻らない。
+- リポを `repositories` から外して destroy すると、provider（6.12.1）の Delete は `allowed_actions = "all"`、`enabled = true` と、ワークフローの権限（read、PR の承認は不可）へ戻すだけで、`sha_pinning_required` は戻さない。GitHub 側には SHA 固定の強制だけが残る。
 
 ## 再評価の条件
 

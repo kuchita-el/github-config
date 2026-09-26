@@ -9,7 +9,7 @@ import {
 }
 
 import {
-  to = github_workflow_repository_permissions.workflow_permissions["gachanuma"]
+  to = github_workflow_repository_permissions.actions_permissions["gachanuma"]
   id = "gachanuma"
 }
 
@@ -19,7 +19,7 @@ import {
 }
 
 import {
-  to = github_workflow_repository_permissions.workflow_permissions["github-config"]
+  to = github_workflow_repository_permissions.actions_permissions["github-config"]
   id = "github-config"
 }
 
@@ -29,7 +29,7 @@ import {
 }
 
 import {
-  to = github_workflow_repository_permissions.workflow_permissions["claude-shared-skills"]
+  to = github_workflow_repository_permissions.actions_permissions["claude-shared-skills"]
   id = "claude-shared-skills"
 }
 
@@ -39,6 +39,6 @@ import {
 }
 
 import {
-  to = github_workflow_repository_permissions.workflow_permissions["dependabot-triage-action"]
+  to = github_workflow_repository_permissions.actions_permissions["dependabot-triage-action"]
   id = "dependabot-triage-action"
 }

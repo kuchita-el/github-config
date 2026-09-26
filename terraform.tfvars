@@ -1,6 +1,7 @@
 # Managed repositories and their repo-specific values (ADR 0004 §4・§5).
 # Each entry declares visibility / profile at the top level and nests other
-# repo-specific values under the concern key (repository / branch_protection);
+# repo-specific values under the concern key (repository / branch_protection /
+# actions_permissions);
 # a concern key is written only when the repo has values for it. All-repository
 # common values live in local.<concern>_preset and are not set here.
 # This file holds only public values (no secrets) and is committed intentionally.

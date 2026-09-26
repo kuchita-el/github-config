@@ -53,7 +53,7 @@ resource "github_actions_repository_permissions" "actions_permissions" {
 # github_workflow_repository_permissions resource for every managed repository.
 # All values are all-repository common (local.actions_permissions_preset); this
 # concern has no repo-specific values.
-resource "github_workflow_repository_permissions" "workflow_permissions" {
+resource "github_workflow_repository_permissions" "actions_permissions" {
   for_each = var.repositories
 
   repository = each.key

@@ -13,7 +13,8 @@ variable "repositories" {
     設定種別にリポ固有値があるリポだけが書き、省略すると値の無い状態（null / 空リスト）になる。
 
     全リポ共通値は各設定種別ファイル冒頭の local.<concern>_preset
-    （repository.tf の repository_preset、branch_protection.tf の branch_protection_preset）に置き、
+    （repository.tf の repository_preset、branch_protection.tf の branch_protection_preset、
+    actions_permissions.tf の actions_permissions_preset）に置き、
     ここでは変えられない。類型決定値は各設定種別ファイル冒頭の
     local.<concern>_profile_defaults（branch_protection.tf の
     branch_protection_profile_defaults）に置き、各リポの profile（類型プロファイル、
@@ -64,7 +65,7 @@ variable "repositories" {
       # （allowed_actions_config.patterns_allowed）。github_owned_allowed /
       # verified_allowed で許可される範囲を超えて使う action だけを書く
       # （例: "jdx/mise-action@*"）。空リストは追加許可なし。
-      patterns_allowed = optional(list(string), [])
+      patterns_allowed = optional(set(string), [])
     }), {})
   }))
 
