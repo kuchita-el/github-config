@@ -42,6 +42,25 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 ---
 
+## 変数
+
+`variables.tf` の `description` を `terraform-docs` で自動反映する（`.claude/skills/tf-docs`）。手動転記しない。
+
+<!-- BEGIN_TF_DOCS -->
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | 管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。 | `string` | n/a | yes |
+| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリは branch\_protection.tf で定義したブランチ保護プリセットを上書きする。<br/>属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は<br/>必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、<br/>そのためプリセットではなくここに置く。 | <pre>map(object({<br/>    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>    status_check_contexts = optional(list(string), [])<br/>    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>    # status_check_contexts が空でない場合は必須。<br/>    status_check_integration_id = optional(number)<br/><br/>    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/>  }))</pre> | n/a | yes |
+
+## Outputs
+
+No outputs.
+<!-- END_TF_DOCS -->
+
+---
+
 ## 初期セットアップ（HCP 未経験者向け）
 
 > 一度だけ実施。以降の運用は「運用フロー」へ。
