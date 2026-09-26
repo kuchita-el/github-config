@@ -22,7 +22,8 @@ branch_protection.tf  全リポ共通値 local.branch_protection_preset と
                       github_repository_ruleset を for_each でリポ単位に展開
 repository.tf         全リポ共通値 local.repository_preset と
                       リポ固有値 repositories.<k>.repository.* を直接参照
-                      github_repository を for_each でリポ単位に展開
+                      github_repository / github_branch_default を for_each で
+                      リポ単位に展開
         │
         ▼
 GitHub API (App 認証)        state ⇄ HCP Terraform workspace
@@ -34,7 +35,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + リポ固有値）の型定義 |
 | `branch_protection.tf` | `local.branch_protection_profile_defaults`（類型決定値、[ADR 0007](docs/adr/0007-strict-status-checks-by-profile.md)）+ `local.branch_protection_preset`（全リポ共通値）+ Ruleset リソース（`for_each` 展開）。類型決定値は `repositories.<k>.profile` をキーに、リポ固有値は `repositories.<k>.branch_protection.*` を直接参照 |
-| `repository.tf` | `local.repository_preset`（全リポ共通値）+ `github_repository` リソース（`for_each` 展開）。リポ固有値は `repositories.<k>.repository.*` を直接参照 + `lifecycle.ignore_changes` |
+| `repository.tf` | `local.repository_preset`（全リポ共通値。既定ブランチ名を含む）+ `github_repository` リソース・`github_branch_default` リソース（いずれも `for_each` 展開）。リポ固有値は `repositories.<k>.repository.*` を直接参照 + `lifecycle.ignore_changes` |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -57,7 +58,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | 管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。 | `string` | n/a | yes |
-| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリにはリポ固有値だけを書く（ADR 0004 §4・§5）。直下には visibility と<br/>profile（いずれも必須、既定値なし）だけを置き、それ以外のリポ固有値は設定種別名の<br/>キー（repository / branch\_protection）の下に入れ子にする。設定種別のキーは、その<br/>設定種別にリポ固有値があるリポだけが書き、省略すると値の無い状態（null / 空リスト）になる。<br/><br/>全リポ共通値は各設定種別ファイル冒頭の local.<concern>\_preset<br/>（repository.tf の repository\_preset、branch\_protection.tf の branch\_protection\_preset）に置き、<br/>ここでは変えられない。類型決定値は各設定種別ファイル冒頭の<br/>local.<concern>\_profile\_defaults（branch\_protection.tf の<br/>branch\_protection\_profile\_defaults）に置き、各リポの profile（類型プロファイル、<br/>ADR 0004 §7）で引く。これもここでは変えられない。特定のリポで全リポ共通値・<br/>類型決定値から外すには、README の「例外台帳」への登録を要する。 | <pre>map(object({<br/>    # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない<br/>    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、<br/>    # default を持たせない。<br/>    visibility = string<br/><br/>    # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。<br/>    # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。<br/>    # 類型決定値の表（local.<concern>_profile_defaults）を引くキーになる。<br/>    profile = string<br/><br/>    # github_repository（repository.tf）のリポ固有値。値を持たないリポは省略できる。<br/>    repository = optional(object({<br/>      # アーカイブ済みか。null は未アーカイブ（provider の既定値 false）として扱われる。<br/>      # lifecycle.ignore_changes の対象で、drift は plan に出ない。<br/>      archived = optional(bool)<br/>      # リポジトリの説明文。null は説明文なし。<br/>      description = optional(string)<br/>    }), {})<br/><br/>    # github_repository_ruleset.branch_protection（branch_protection.tf）のリポ固有値。<br/>    # 値を持たないリポは省略できる。<br/>    branch_protection = optional(object({<br/>      # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>      # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>      status_check_contexts = optional(list(string), [])<br/>      # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>      # status_check_contexts が空でない場合は必須。<br/>      status_check_integration_id = optional(number)<br/>    }), {})<br/>  }))</pre> | n/a | yes |
+| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリにはリポ固有値だけを書く（ADR 0004 §4・§5）。直下には visibility と<br/>profile（いずれも必須、既定値なし）だけを置き、それ以外のリポ固有値は設定種別名の<br/>キー（repository / branch\_protection）の下に入れ子にする。設定種別のキーは、その<br/>設定種別にリポ固有値があるリポだけが書き、省略すると値の無い状態（null / 空リスト）になる。<br/><br/>全リポ共通値は各設定種別ファイル冒頭の local.<concern>\_preset<br/>（repository.tf の repository\_preset、branch\_protection.tf の branch\_protection\_preset）に置き、<br/>ここでは変えられない。類型決定値は各設定種別ファイル冒頭の<br/>local.<concern>\_profile\_defaults（branch\_protection.tf の<br/>branch\_protection\_profile\_defaults）に置き、各リポの profile（類型プロファイル、<br/>ADR 0004 §7）で引く。これもここでは変えられない。特定のリポで全リポ共通値・<br/>類型決定値から外すには、README の「例外台帳」への登録を要する。 | <pre>map(object({<br/>    # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない<br/>    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、<br/>    # default を持たせない。<br/>    visibility = string<br/><br/>    # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。<br/>    # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。<br/>    # 類型決定値の表（local.<concern>_profile_defaults）を引くキーになる。<br/>    profile = string<br/><br/>    # github_repository（repository.tf）のリポ固有値。値を持たないリポは省略できる。<br/>    repository = optional(object({<br/>      # アーカイブ済みか。null は未アーカイブ（provider の既定値 false）として扱われる。<br/>      # lifecycle.ignore_changes の対象で、drift は plan に出ない。<br/>      archived = optional(bool)<br/>      # リポジトリの説明文。null は説明文なし。<br/>      description = optional(string)<br/>      # リポジトリのホームページ URL（About 欄の Website）。null はホームページなし。<br/>      homepage_url = optional(string)<br/>      # リポジトリの topics（ADR 0001 §2: github_repository.topics 属性で管理する）。<br/>      # 空リストは topics なし。英小文字・数字・ハイフンのみ、50 文字以内（provider の検証）。<br/>      topics = optional(set(string), [])<br/>    }), {})<br/><br/>    # github_repository_ruleset.branch_protection（branch_protection.tf）のリポ固有値。<br/>    # 値を持たないリポは省略できる。<br/>    branch_protection = optional(object({<br/>      # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>      # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>      status_check_contexts = optional(list(string), [])<br/>      # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>      # status_check_contexts が空でない場合は必須。<br/>      status_check_integration_id = optional(number)<br/>    }), {})<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 
@@ -154,6 +155,8 @@ terraform validate     # 構文・スキーマ検証
    }
    # 例: id = "gachanuma:16492768"
    ```
+   import ID の形はリソース型ごとに異なる。`github_repository.this` と
+   `github_branch_default.repository` はリポ名だけ（例: `id = "gachanuma"`）。
 4. `terraform plan` を実行し、**`0 to add, 0 to change, 0 to destroy`（import のみ）** になるまで
    `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。
    ただし、類型決定値・全リポ共通値と実態が食い違う場合は、`terraform.tfvars` や preset を実態へ寄せず、
