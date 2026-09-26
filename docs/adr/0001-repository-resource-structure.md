@@ -158,7 +158,8 @@
   - `visibility` は型レベルで required（`optional` ではない）にし、resource ブロックで `visibility = each.value.visibility` のように直接渡す。
   - `repository.tf` の resource ブロック内に `lifecycle { ignore_changes = [visibility, archived] }` を記述する。
   - `repository_security.tf` / `repository_process.tf` は**新設しない**（locals 分割を行わない）。
-- **#17 開発プロセス系**:
+  - **開発プロセス系3属性の前倒し**（#16 実装時に判明）: `integrations/github` provider は `has_issues` / `delete_branch_on_merge` / `description` を宣言しないと空値（`false` / provider 既定値 / null）へ変更する plan を出す。4リポとも `has_issues=true` のため、未宣言のままでは import 時の plan が no-op にならず、apply で全リポの Issue 機能が無効になる。このため3属性は #16 で `optional(type, default)` として宣言する（default は下記 #17 の preset 値を用い、差分のある `delete_branch_on_merge` / `description` は per-repo override）。
+- **#17 開発プロセス系**（`has_issues` / `delete_branch_on_merge` / `description` は #16 で宣言済み。上記「開発プロセス系3属性の前倒し」参照）:
   - `variables.tf` の `repositories` 型に開発プロセス系属性を `optional(type, default)` で追記する。対象属性: `allow_squash_merge`（default: `true`）, `allow_merge_commit`（default: `true`）, `allow_rebase_merge`（default: `true`）, `delete_branch_on_merge`（default: `false`）, `default_branch`（default: `"main"`）, `description`（default: `null`）, `homepage`（default: `null`）, `topics`（default: `[]`）, `has_issues`（default: `true`）。差分のある `delete_branch_on_merge` / `description` は per-repo override で実値を指定する。
   - `repository.tf` の resource ブロックには #16 時点で全属性参照を仕込む構成にできない場合、#17 で属性参照を追記する。`merge()` 合成式や locals 値の追記といった作業は発生しない（variable defaults に集約されるため）。
 - **per-repo override**: 差分のある3属性（`delete_branch_on_merge` / `description` / `has_wiki`）を `terraform.tfvars` の対応リポエントリに追記する。preset と一致する属性は記述しない（型レベルで default が適用される）。

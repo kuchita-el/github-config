@@ -1,0 +1,44 @@
+# Fixture (positive, A: variable defaults パターン): ADR 0001 §1 から3点で逸脱。
+# 期待: 観点 6 が blocker で発火（A）。
+
+variable "repositories" {
+  type = map(object({
+    # 逸脱 (c): visibility が optional 化されている（ADR 0001 §影響 #16 では必須）。
+    visibility = optional(string, "public")
+
+    # 逸脱 (b): preset 値（false）が default として宣言されていない。
+    # 未指定のリポでは null が渡り、provider 既定値が暗黙に適用される。
+    has_wiki = optional(bool)
+
+    has_discussions = optional(bool, false)
+  }))
+}
+
+locals {
+  # 逸脱 (a): locals の preset と merge() + null 除去で合成している。
+  repository_security_preset = {
+    has_wiki        = false
+    has_discussions = false
+  }
+
+  repository_settings = {
+    for repo, ovr in var.repositories : repo => merge(
+      local.repository_security_preset,
+      { for k, v in ovr : k => v if v != null },
+    )
+  }
+}
+
+resource "github_repository" "this" {
+  for_each = var.repositories
+
+  name       = each.key
+  visibility = each.value.visibility
+
+  has_wiki        = local.repository_settings[each.key].has_wiki
+  has_discussions = local.repository_settings[each.key].has_discussions
+
+  lifecycle {
+    ignore_changes = [visibility, archived]
+  }
+}

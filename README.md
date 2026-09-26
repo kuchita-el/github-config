@@ -17,8 +17,10 @@
 terraform.tfvars (管理対象リポ + リポ別override)
         │
         ▼
-branch_protection.tf  branch_protection_preset(全リポ共通の既定) + セレクター式（!= null ? : ）で override 合成
+branch_protection.tf  branch_protection_preset(全リポ共通の既定) と override を merge() で合成
                       github_repository_ruleset を for_each でリポ単位に展開
+repository.tf         variables.tf の optional default(全リポ共通の既定) を直接参照
+                      github_repository を for_each でリポ単位に展開
         │
         ▼
 GitHub API (App 認証)        state ⇄ HCP Terraform workspace
@@ -30,6 +32,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
 | `branch_protection.tf` | `branch_protection_preset`（既定）とリポ別 override の合成ロジック + Ruleset リソース（`for_each` 展開） |
+| `repository.tf` | `github_repository` リソース（`for_each` 展開）。属性は `var.repositories` を直接参照 + `lifecycle.ignore_changes` |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -52,7 +55,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | 管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。 | `string` | n/a | yes |
-| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリは branch\_protection.tf で定義したブランチ保護プリセットを上書きする。<br/>属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は<br/>必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、<br/>そのためプリセットではなくここに置く。 | <pre>map(object({<br/>    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>    status_check_contexts = optional(list(string), [])<br/>    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>    # status_check_contexts が空でない場合は必須。<br/>    status_check_integration_id = optional(number)<br/><br/>    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/>  }))</pre> | n/a | yes |
+| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリは branch\_protection.tf で定義したブランチ保護プリセットを上書きする。<br/>属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は<br/>必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、<br/>そのためプリセットではなくここに置く。<br/><br/>github\_repository の属性（visibility を除く）は optional の default をプリセット値とし、<br/>差分のあるリポジトリだけが値を指定する（ADR 0001 §1）。visibility は全リポジトリで必須。 | <pre>map(object({<br/>    # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない<br/>    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、<br/>    # default を持たせない。<br/>    visibility = string<br/><br/>    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>    status_check_contexts = optional(list(string), [])<br/>    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>    # status_check_contexts が空でない場合は必須。<br/>    status_check_integration_id = optional(number)<br/><br/>    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/><br/>    # github_repository のセキュリティ系属性（ADR 0001 §1 / Issue #16）。<br/>    # default がプリセット値（管理対象4リポの共通値、ADR 0001 付録 A）で、リポジトリ単位で上書きできる。<br/>    # 書き込み可能な状態を既定とする。lifecycle.ignore_changes で drift から保護する。<br/>    archived = optional(bool, false)<br/>    # 条件を満たした PR が人のレビューを経ずにマージされる経路を既定で閉じる。<br/>    allow_auto_merge = optional(bool, false)<br/>    # wiki / projects / discussions は外部からの書き込み面を広げるため、実態に合わせつつ既定で絞る。<br/>    has_wiki        = optional(bool, false)<br/>    has_projects    = optional(bool, true)<br/>    has_discussions = optional(bool, false)<br/><br/>    # github_repository の開発プロセス系属性のうち、#16 に前倒しするもの（ADR 0001 §影響 #16）。<br/>    # provider はこれらを宣言しないと空値（false / null）へ変更する plan を出すため、import を no-op に<br/>    # するには #16 の時点で実態値の宣言が要る。default は ADR 0001 §影響 #17 の preset 値。<br/>    has_issues             = optional(bool, true)<br/>    delete_branch_on_merge = optional(bool, false)<br/>    # preset 値が null のため default を省略する（null = 説明文なし）。<br/>    description = optional(string)<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 
@@ -239,10 +242,12 @@ Agent(
 将来 labels / dependabot / merge settings 等を足すときのパターン:
 
 1. 新しい設定種別ごとに `*.tf` ファイルを1枚追加（例: `repository_labels.tf`）。
-2. 全リポ共通の既定値は当該 `*.tf` 冒頭に `local.<resource>_preset` として定義（ADR 0001）。
-3. リポ別差分は `variables.tf` の `repositories` object に optional 属性を足し、`terraform.tfvars` で注入。
-4. リソースは `for_each = local.<新設定>` でリポ単位に展開（1設定種別 = 1リソース）。
+2. 全リポ共通の既定値は `variables.tf` の `repositories` object に `optional(type, default)` の default として宣言（ADR 0001 §1）。
+3. リポ別差分は `terraform.tfvars` の該当リポで当該属性を上書き。
+4. リソースは `for_each = var.repositories` でリポ単位に展開し、属性は `var.repositories[each.key].<attr>` を直接参照（1設定種別 = 1リソース）。locals での preset 定義や `merge()` による合成は行わない。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
+
+> `repository.tf`（`github_repository`）はこのパターンに従う。`branch_protection.tf` は `local.branch_protection_preset` + `merge()` の旧パターンのままで、同パターンへの移行は ADR 0001 §影響「既存 `branch_protection.tf` への波及」で別 Issue とされている。
 
 ---
 
