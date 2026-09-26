@@ -6,7 +6,6 @@ github_owner = "kuchita-el"
 repositories = {
   # gachanuma: the existing repo whose "main protection" ruleset is the source of
   # truth for the preset. status check contexts are gachanuma-specific.
-  # has_wiki=true overrides the security preset (false).
   #
   # profile = app（ADR 0004 §7）: TypeScript 製の実行アプリケーション（確率計算ツール）で、
   # main への push を CI 成功後に GitHub Pages へ静的サイトとしてデプロイする。利用者は
@@ -14,7 +13,6 @@ repositories = {
   gachanuma = {
     visibility                  = "public"
     profile                     = "app"
-    has_wiki                    = true
     status_check_contexts       = ["lint", "typecheck", "test", "build", "e2e"]
     status_check_integration_id = 15368 # GitHub Actions
   }
@@ -34,17 +32,13 @@ repositories = {
   # claude-shared-skills: onboarded by standardizing its pre-existing ruleset
   # (which was enforcement=disabled) to the preset. No CI → no contexts.
   # Imported via a temporary import {} block, then converged. See README.
-  # has_wiki=true overrides the security preset (false).
-  # delete_branch_on_merge=true overrides the process preset (false).
   #
   # profile = distribution（ADR 0004 §7）: Claude Code / Codex 向けのプラグイン・スキル集。
   # 利用者は marketplace 経由で ref 参照してインストールする（ADR 0004 §7 の識別子表が
   # 「スキル」「プラグイン」を配布物の例として明示）。
   "claude-shared-skills" = {
-    visibility             = "public"
-    profile                = "distribution"
-    has_wiki               = true
-    delete_branch_on_merge = true
+    visibility = "public"
+    profile    = "distribution"
   }
 
   # dependabot-triage-action: public-ized for #4 (was private). No pre-existing

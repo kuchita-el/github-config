@@ -62,9 +62,11 @@ variable "repositories" {
 
     # github_repository の開発プロセス系属性のうち、#16 に前倒しするもの（ADR 0001 §影響 #16）。
     # provider はこれらを宣言しないと空値（false / null）へ変更する plan を出すため、import を no-op に
-    # するには #16 の時点で実態値の宣言が要る。default は ADR 0001 §影響 #17 の preset 値。
+    # するには #16 の時点で実態値の宣言が要る。has_issues の default は ADR 0001 §影響 #17 の preset 値。
+    # delete_branch_on_merge の default は true（全リポ共通）。ADR 0001 §影響 #17 の preset 値は false
+    # だったが、値統一 PR でユーザー判断により claude-shared-skills の実値 true へ全リポを揃えた。
     has_issues             = optional(bool, true)
-    delete_branch_on_merge = optional(bool, false)
+    delete_branch_on_merge = optional(bool, true)
     # preset 値が null のため default を省略する（null = 説明文なし）。
     description = optional(string)
   }))
