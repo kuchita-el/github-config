@@ -243,10 +243,11 @@ Agent(
 ## 手順: 新規リポを管理対象に追加する
 
 - **既存 Ruleset があるリポ** → 上記「既存リポの取り込み（import）」に従う（import 必須）。
-- **Ruleset が無い新規リポ**:
-  1. `terraform.tfvars` の `repositories` にリポ名を追加する。`visibility` と `profile`（[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §7、必須・既定値なし）を直下に宣言し、判定根拠をコメントで残す。リポ固有値は設定種別名のキーの下に入れ子で書く（CI があれば `branch_protection = { status_check_contexts = [...], status_check_integration_id = 15368 }`、説明文があれば `repository = { description = "..." }`）。値の無い設定種別のキーは省略する（ADR 0004 §5）。全リポ共通値（`local.<concern>_preset`）はここに書かない。
-  2. `terraform plan` で「1 to add」になることを確認（他リポが recreate されないこと）。
-  3. `terraform apply`。
+- **Ruleset が無いリポ**: Ruleset 以外の管理対象（`github_repository.this`・`github_branch_default.repository`・`github_actions_repository_permissions.actions_permissions`・`github_workflow_repository_permissions.actions_permissions`）は GitHub 側に既にあるため、上記「既存リポの取り込み（import）」の手順で import する。新規作成になるのは Ruleset だけ。
+  1. 取り込みの前に、対象リポのワークフローが参照する action を SHA 参照（`uses: <owner>/<repo>@<40桁の SHA> # <バージョン>`）へ固定する。複合 action は内部の参照も SHA で固定された版を使う（[ADR 0008](docs/adr/0008-actions-permissions.md) の帰結）。
+  2. `terraform.tfvars` の `repositories` にリポ名を追加する。`visibility` と `profile`（[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §7、必須・既定値なし）を直下に宣言し、判定根拠をコメントで残す。リポ固有値は設定種別名のキーの下に入れ子で書く（CI があれば `branch_protection = { status_check_contexts = [...], status_check_integration_id = 15368 }`、説明文があれば `repository = { description = "..." }`、`actions/*`・`github/*` 以外の action を使うなら `actions_permissions = { patterns_allowed = ["<owner>/<repo>@*"] }`）。値の無い設定種別のキーは省略する（ADR 0004 §5）。全リポ共通値（`local.<concern>_preset`）はここに書かない。
+  3. Ruleset 以外の4リソースの `import {}` ブロックを追加し、`terraform plan` が `4 to import, 1 to add, 0 to change, 0 to destroy`（Ruleset の作成のみ）になることを確認する（他リポが recreate されないこと）。実値が全リポ共通値・類型決定値と食い違う場合は ADR 0004 §4「取り込み時の食い違い」に従う。
+  4. `terraform apply` の後、`import {}` ブロックを削除し、`plan` が `No changes` のままであることを確認する。
 
 > `for_each` のキーはリポ名（不変）。リポ追加で既存リソースが destroy/recreate されることはない。
 
