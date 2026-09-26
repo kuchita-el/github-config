@@ -1,0 +1,10 @@
+Terraform will perform the following actions:
+
+  # github_repository_ruleset.branch_protection["gachanuma"] must be replaced
+-/+ resource "github_repository_ruleset" "branch_protection" {
+      ~ id          = "16492768" -> (known after apply)
+      ~ name        = "main protection" -> "Main branch protection" # forces replacement
+        # (other unchanged attributes)
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.

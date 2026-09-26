@@ -1,0 +1,43 @@
+# Fixture (negative): for_each キー変更があり moved ブロックも追加済み。
+# 期待: 観点 1 は発火しない。
+
+resource "github_repository_ruleset" "branch_protection" {
+  for_each = local.branch_protection_v2_keyed
+
+  name        = each.value.name
+  repository  = each.value.repository
+  target      = each.value.target
+  enforcement = each.value.enforcement
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  rules {
+    creation = each.value.creation
+  }
+}
+
+# キースキーマ変更に対応する moved ブロック。destroy/recreate を回避する。
+moved {
+  from = github_repository_ruleset.branch_protection["gachanuma"]
+  to   = github_repository_ruleset.branch_protection["gachanuma:main"]
+}
+
+moved {
+  from = github_repository_ruleset.branch_protection["github-config"]
+  to   = github_repository_ruleset.branch_protection["github-config:main"]
+}
+
+moved {
+  from = github_repository_ruleset.branch_protection["claude-shared-skills"]
+  to   = github_repository_ruleset.branch_protection["claude-shared-skills:main"]
+}
+
+moved {
+  from = github_repository_ruleset.branch_protection["dependabot-triage-action"]
+  to   = github_repository_ruleset.branch_protection["dependabot-triage-action:main"]
+}

@@ -1,0 +1,13 @@
+# Fixture (positive): github_repository_file を追加。
+# App スコープ（Administration RW + Metadata R）の範囲外。
+# 必要権限: Contents RW（README.md は意図的に Contents を付与していない）
+# 期待: 観点 7 が blocker で発火。
+
+resource "github_repository_file" "codeowners" {
+  repository          = "gachanuma"
+  file                = ".github/CODEOWNERS"
+  content             = "* @kuchita-el\n"
+  branch              = "main"
+  commit_message      = "Add CODEOWNERS"
+  overwrite_on_create = true
+}

@@ -1,0 +1,23 @@
+# Fixture (negative): for_each = local.branch_protection。
+# 既存 branch_protection.tf:4-5 のパターン。
+# 期待: 観点 4 は発火しない。
+
+resource "github_repository_ruleset" "branch_protection" {
+  for_each = local.branch_protection
+
+  name        = each.value.name
+  repository  = each.key
+  target      = each.value.target
+  enforcement = each.value.enforcement
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  rules {
+    creation = each.value.creation
+  }
+}

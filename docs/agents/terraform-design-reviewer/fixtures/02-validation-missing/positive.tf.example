@@ -1,0 +1,30 @@
+# Fixture (positive): variables.tf に validation を伴わない optional フィールド追加。
+# 元: variables.tf:6 の variable "repositories"
+# 期待: 観点 2 が warning で発火。
+
+variable "repositories" {
+  description = "Managed repositories."
+
+  type = map(object({
+    status_check_contexts       = optional(list(string), [])
+    status_check_integration_id = optional(number)
+
+    # 新規追加: enforcement の上書き。文字列の列挙値（active / evaluate / disabled）
+    # を取りうるが、validation で列挙制約を表現していない。
+    enforcement = optional(string)
+
+    # 新規追加: merge_method の上書き。["squash","merge","rebase"] のサブセットを
+    # 取りうるが、validation で列挙制約を表現していない。
+    allowed_merge_methods = optional(list(string))
+  }))
+
+  # NOTE: status_check_integration_id の相互排他 validation はあるが、
+  # 新規追加した enforcement / allowed_merge_methods に対する列挙 validation がない。
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      length(r.status_check_contexts) == 0 || r.status_check_integration_id != null
+    ])
+    error_message = "status_check_integration_id is required when status_check_contexts is non-empty."
+  }
+}

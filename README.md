@@ -17,10 +17,8 @@
 terraform.tfvars (管理対象リポ + リポ別override)
         │
         ▼
-locals.tf  base_branch_protection(全リポ共通の既定) + coalesce で override 合成
-        │
-        ▼
-branch_protection.tf  github_repository_ruleset を for_each でリポ単位に展開
+branch_protection.tf  branch_protection_preset(全リポ共通の既定) + セレクター式（!= null ? : ）で override 合成
+                      github_repository_ruleset を for_each でリポ単位に展開
         │
         ▼
 GitHub API (App 認証)        state ⇄ HCP Terraform workspace
@@ -28,14 +26,13 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 | ファイル | 役割 |
 |---|---|
-| `versions.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
+| `terraform.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
-| `locals.tf` | ベース設定とリポ別 override の合成ロジック |
-| `branch_protection.tf` | Ruleset リソース（`for_each` 展開） |
+| `branch_protection.tf` | `branch_protection_preset`（既定）とリポ別 override の合成ロジック + Ruleset リソース（`for_each` 展開） |
 | `repository.tf` | `github_repository` リソース（`for_each` 展開）。preset 合成 + `lifecycle.ignore_changes` |
-| `repository_security.tf` | セキュリティ系 base preset（`local.repository_security_preset`）。ADR 0001 §1 動機軸分割 |
-| `repository_process.tf` | 開発プロセス系 base preset（`local.repository_process_preset`）。Issue #17 で値を埋める |
+| `repository_security.tf` | セキュリティ系 preset（`local.repository_security_preset`）。ADR 0001 §1 動機軸分割 |
+| `repository_process.tf` | 開発プロセス系 preset（`local.repository_process_preset`）。Issue #17 で値を埋める |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -45,6 +42,25 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 - リポ個別のカスタマイズは UI で行わず、**`terraform.tfvars` の override として記述**する。
 - 既存リポを管理対象に入れるときは、**必ず `import` → `plan` で no-op 確認**してから `apply` する（いきなり apply すると既存設定を上書き新規作成する事故になる）。
+
+---
+
+## 変数
+
+`variables.tf` の `description` を `terraform-docs` で自動反映する（`.claude/skills/tf-docs`）。手動転記しない。
+
+<!-- BEGIN_TF_DOCS -->
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | 管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。 | `string` | n/a | yes |
+| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリは branch\_protection.tf で定義したブランチ保護プリセットを上書きする。<br/>属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は<br/>必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、<br/>そのためプリセットではなくここに置く。 | <pre>map(object({<br/>    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>    status_check_contexts = optional(list(string), [])<br/>    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>    # status_check_contexts が空でない場合は必須。<br/>    status_check_integration_id = optional(number)<br/><br/>    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/>  }))</pre> | n/a | yes |
+
+## Outputs
+
+No outputs.
+<!-- END_TF_DOCS -->
 
 ---
 
@@ -60,13 +76,15 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 terraform version   # >= 1.6 であること
 ```
 
+`mise` 利用時はリポルートで `mise install` を実行すれば `terraform` / `tflint` 双方が `mise.toml` の固定バージョンで取得できる。`tflint` は v0.51 以降 `terraform-linters/tflint-ruleset-terraform` を bundled しているため、リポルートの `.tflint.hcl` 設定のみで動作し、追加の `tflint --init` は不要（カスタム plugin を増やした場合のみ実施）。
+
 ### 2. HCP Terraform アカウント・組織・ワークスペースの作成
 
 1. https://app.terraform.io にサインアップ（無料tier）。
-2. **Organization** を作成（名前は任意。例: `kuchita-el`）。← この名前を後で `versions.tf` に記入する。
+2. **Organization** を作成（名前は任意。例: `kuchita-el`）。← この名前を後で `terraform.tf` に記入する。
 3. **Workspace** を作成:
    - Type: **CLI-Driven Workflow** を選択
-   - 名前: `github-config`（`versions.tf` の `workspaces { name = ... }` と一致させる）
+   - 名前: `github-config`（`terraform.tf` の `workspaces { name = ... }` と一致させる）
 4. 作成した Workspace の **Settings → General** で **Execution Mode = Remote** を確認（既定で Remote）。
 
 ### 3. GitHub App の作成・インストール・秘密鍵の生成
@@ -101,7 +119,7 @@ Workspace → **Variables** → 以下3つを **Environment variable** で追加
 
 ### 5. organization 名を記入
 
-`versions.tf` の `organization = "REPLACE_WITH_YOUR_HCP_ORG"` を手順2で作った組織名に置換してコミットする。
+`terraform.tf` の `organization = "REPLACE_WITH_YOUR_HCP_ORG"` を手順2で作った組織名に置換してコミットする。
 
 ### 6. 初期化
 
@@ -135,7 +153,7 @@ terraform validate     # 構文・スキーマ検証
    # 例: id = "gachanuma:16492768"
    ```
 4. `terraform plan` を実行し、**`0 to add, 0 to change, 0 to destroy`（import のみ）** になるまで
-   `terraform.tfvars` / `locals.tf` を実態へ寄せる。
+   `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。
    差分が出やすい箇所: `allowed_merge_methods` の順序、`required_check` の集合、`integration_id` の有無、`enforcement`。
    ```
    Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
@@ -151,11 +169,59 @@ terraform validate     # 構文・スキーマ検証
 ```bash
 terraform fmt          # 整形
 terraform validate     # 検証
-terraform plan         # 変更内容を事前確認（レビュー）
-terraform apply        # 適用
+terraform plan         # （任意）手戻り防止の自己確認
+# → PR 起票後、HCP Speculative Plan が GitHub Checks に自動表示される（強制ゲート）
+terraform apply        # HCP UI で plan 結果を確認後、適用
 ```
 
+### Speculative Plan の自動起動（VCS 連携）
+
+HCP Workspace は `kuchita-el/github-config` リポに VCS 連携済みのため、**PR を起票・push すると HCP で Speculative Plan が自動起動**する。
+
+- Plan 結果（成功・失敗・差分有無）は PR の "Checks" タブに表示される
+- マージ前の振る舞い確認はこの自動 Plan を正とする
+- ローカルの `terraform plan` は**任意習慣**（開発者の自己確認・手戻り防止用）であり、強制ゲートではない
+- Apply は自動化されない（Manual apply）。HCP UI で `Plan succeeded` を確認後、`Start apply` を押す
+
+Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit` 直後に `terraform fmt`（`.claude/hooks/terraform-fmt.sh`）と `tflint`（`.claude/hooks/tflint.sh`）が PostToolUse hook で自動実行される。`tflint` は `.tflint.hcl` の `terraform-linters/tflint-ruleset-terraform` `recommended` プリセットで対象ファイルの違反のみを stderr に出力する（違反検知時もセッションはブロックされない）。手動 `terraform fmt` / `tflint` も引き続き有効。
+
 冪等性: `apply` 直後に再度 `plan`/`apply` しても `No changes` になる。
+
+### PR レビュー時の reviewer 併用
+
+`.tf` 変更を含む PR では、汎用 `dev-workflow:code-reviewer`（既存）に加えて Terraform 固有設計レビュー用の `terraform-design-reviewer`（本リポ `.claude/agents/` 配下）を併用する。詳細は [`docs/agents/terraform-design-reviewer/README.md`](docs/agents/terraform-design-reviewer/README.md) を参照。
+
+`terraform-design-reviewer` は `Bash` 権限を持たないため、呼び出し側で事前に `git diff` を取得してプロンプトに含める。起動例（Claude Code 内）:
+
+```bash
+# 呼び出し側で事前に取得
+git diff main...HEAD -- '*.tf' '*.tfvars' > /tmp/tf-diff.txt
+```
+
+```
+# 汎用レビュアー（既存）と並列起動
+Agent(subagent_type: "dev-workflow:code-reviewer", prompt: "...")
+Agent(
+  subagent_type: "terraform-design-reviewer",
+  prompt: """
+    ベースブランチ: main
+
+    ## git diff
+    <`/tmp/tf-diff.txt` の中身を貼り付け>
+
+    ## plan 出力（任意）
+    <HCP plan 出力テキスト。未提供なら空欄>
+
+    ## 要件情報
+    <Issue/PR 本文の要点>
+  """
+)
+```
+
+両 reviewer は補完関係。重複指摘抑止ルール:
+
+- 観点境界は `terraform-design-reviewer` の reviewer 定義に明文化（観点 5: Terraform 固有定数に限定）。
+- 同一行・同主旨の指摘が両 reviewer から出た場合は片方を採用する（重複は二重表示しない）。
 
 ---
 
@@ -176,7 +242,7 @@ terraform apply        # 適用
 将来 labels / dependabot / merge settings 等を足すときのパターン:
 
 1. 新しい設定種別ごとに `*.tf` ファイルを1枚追加（例: `repository_labels.tf`）。
-2. 全リポ共通の既定値は `locals.tf` にベースとして定義。
+2. 全リポ共通の既定値は当該 `*.tf` 冒頭に `local.<resource>_preset` として定義（ADR 0001）。
 3. リポ別差分は `variables.tf` の `repositories` object に optional 属性を足し、`terraform.tfvars` で注入。
 4. リソースは `for_each = local.<新設定>` でリポ単位に展開（1設定種別 = 1リソース）。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
@@ -185,16 +251,48 @@ terraform apply        # 適用
 
 ---
 
+## Claude Code 連携（オプション）
+
+本リポは Claude Code 用の MCP / skill を project スコープで設定済み。Terraform 編集を Claude Code 上で行う場合のみ必要、ローカル CLI / HCP からの `terraform plan/apply` には影響しない。
+
+### 構成
+
+| 種別 | 名前 | 出所 | 用途 |
+|---|---|---|---|
+| MCP（`.mcp.json`） | `terraform` | `hashicorp/terraform-mcp-server:1.0.0`（公式、Docker stdio） | Terraform Registry の provider 属性 live 照会 |
+| skill plugin（`.claude/settings.json`） | `terraform-code-generation@hashicorp` | `hashicorp/agent-skills` marketplace | `terraform-style-guide` 等を提供 |
+| skill plugin（`.claude/settings.json`） | `terraform-module-generation@hashicorp` | 同上 | `refactor-module` 等（将来モジュール分割時のケイパビリティ担保） |
+
+### 初回セットアップ
+
+> Claude Code 本体は別途インストール済みであることを前提とする。Docker も必要（公式 MCP サーバが Docker stdio で起動するため）。
+
+marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraKnownMarketplaces` で project スコープ宣言済みのため、手動追加は不要。
+
+1. **プロジェクトを開いて `claude` を起動** — 初回は project スコープの `.mcp.json` および `.claude/settings.json`（marketplace / plugin 有効化）に対する信頼確認ダイアログが出るので、それぞれ承認する。
+2. **動作確認**
+   ```bash
+   claude plugin list  # 両 plugin が ✔ enabled になっていること
+   claude mcp list     # terraform / plugin:terraform-code-generation:terraform 等が ✔ Connected になっていること
+   ```
+
+承認状態を破棄してやり直す場合は `claude mcp reset-project-choices`（MCP）あるいは settings の plugin 承認リセット手順を参照。
+
+---
+
 ## トラブルシュート
 
 | 症状 | 原因・対処 |
 |---|---|
 | `403 Resource not accessible by integration` | App に対象リポの **Administration: Read and write** が無い、対象リポが **インストール対象に含まれていない**、または provider の `owner` 未設定。手順3（権限・Selected repositories）を見直す |
-| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`locals.tf` を実態へ寄せる |
+| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`branch_protection.tf` を実態へ寄せる |
+| Speculative Plan が PR 起票後に自動起動しない | HCP Workspace の Settings → Version Control で VCS 連携が未設定か "Automatic speculative plans on pull requests" が無効。連携 UI を確認する |
+| GitHub Checks に HCP Terraform の check が現れない | GitHub App（Terraform Cloud）がリポにインストールされていないか権限が不足。HCP の VCS 設定画面の手順に従い GitHub App を再インストールする |
+| Speculative Plan が `Error` / `Failed` で終わる | `.tf` 構文エラー・provider 認証失敗・変数未定義が原因のことが多い。HCP UI の Run ログで詳細を確認し、ローカルで `terraform validate` / `terraform fmt` を実施する |
 | provider のスキーマエラー | provider バージョン差異。`~> 6.0` 固定と `.terraform.lock.hcl` のコミットを確認 |
 | `Error: Required token could not be found` 等の認証エラー | App 変数3本（`GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE`）が HCP workspace に未登録、または `providers.tf` の `app_auth {}` ブロック欠落。手順4を見直す |
 | ローカル `terraform validate` で `app_auth` の `installation_id is required` | App 認証情報は環境変数から解決されるため、ローカル validate には `GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID`/`GITHUB_APP_PEM_FILE` の export が必要（Remote 実行では HCP が注入するので不要） |
-| ローカルに `terraform.tfstate` ができる | `cloud {}` が効いていない。`versions.tf` の organization/workspace 名と `terraform init` を確認 |
+| ローカルに `terraform.tfstate` ができる | `cloud {}` が効いていない。`terraform.tf` の organization/workspace 名と `terraform init` を確認 |
 
 ### PAT → App 切替・ロールバック
 

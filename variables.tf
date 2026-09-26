@@ -1,33 +1,32 @@
 variable "github_owner" {
   type        = string
-  description = "GitHub account (owner) that the managed repositories belong to (e.g. your username)."
+  description = "管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。"
 }
 
 variable "repositories" {
   description = <<-EOT
-    Repositories under management, keyed by repository name.
+    管理対象リポジトリ。キーはリポジトリ名。
 
-    Each entry overrides the base branch-protection preset defined in locals.tf.
-    Leave an attribute unset to inherit the base value. The only commonly
-    repo-specific values are the required status check contexts (CI job names),
-    which differ per repository, so they live here rather than in the base.
+    各エントリは branch_protection.tf で定義したブランチ保護プリセットを上書きする。
+    属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は
+    必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、
+    そのためプリセットではなくここに置く。
   EOT
 
   type = map(object({
-    # Required per-repo declaration: repository visibility. Required (non-optional)
-    # to force explicit declaration for every repo (ADR 0001 §3 / Issue #16).
-    # Not included in repository_security_preset to prevent accidental drift via
-    # base preset edits.
+    # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない
+    # （ADR 0001 §3 / Issue #16）。プリセット編集による意図しない変更を防ぐため、
+    # repository_security_preset には含めない。
     visibility = string
 
-    # Required status check contexts (CI job names) for this repo. Empty list = no
-    # required_status_checks rule for this repo.
+    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。
+    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。
     status_check_contexts = optional(list(string), [])
-    # GitHub App ID that produces the checks above (15368 = GitHub Actions).
-    # Required when status_check_contexts is non-empty.
+    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。
+    # status_check_contexts が空でない場合は必須。
     status_check_integration_id = optional(number)
 
-    # Optional per-repo overrides of the base branch-protection preset (null = inherit base).
+    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。
     enforcement                          = optional(string)
     required_approving_review_count      = optional(number)
     dismiss_stale_reviews_on_push        = optional(bool)
@@ -38,9 +37,9 @@ variable "repositories" {
     strict_required_status_checks_policy = optional(bool)
     do_not_enforce_on_create             = optional(bool)
 
-    # Optional per-repo overrides of the base repository_security preset (null = inherit base).
-    # ADR 0001 §1 / Issue #16. null is stripped before merge() so unset values
-    # do not overwrite base preset values.
+    # リポジトリ単位での repository_security_preset 上書き（任意）。null はプリセットの値を
+    # 引き継ぐ（ADR 0001 §1 / Issue #16）。merge() の前に null を除去するため、未指定の値が
+    # プリセットの値を上書きすることはない。
     archived         = optional(bool)
     allow_auto_merge = optional(bool)
     has_wiki         = optional(bool)

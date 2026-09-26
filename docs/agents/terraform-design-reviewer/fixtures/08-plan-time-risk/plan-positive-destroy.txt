@@ -1,0 +1,13 @@
+Terraform will perform the following actions:
+
+  # github_repository_ruleset.branch_protection["github-config"] will be destroyed
+  # (because key ["github-config"] is not in for_each map)
+  - resource "github_repository_ruleset" "branch_protection" {
+      - enforcement = "active" -> null
+      - id          = "12345678" -> null
+      - name        = "main protection" -> null
+      - repository  = "github-config" -> null
+      - target      = "branch" -> null
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.

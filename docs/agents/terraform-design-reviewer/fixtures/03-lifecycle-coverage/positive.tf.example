@@ -1,0 +1,23 @@
+# Fixture (positive): github_repository に lifecycle.ignore_changes が不足。
+# ADR 0001 §3 が `visibility` と `archived` を必須保護対象として確定している。
+# 期待: 観点 3 が blocker で発火。
+
+resource "github_repository" "this" {
+  for_each = var.repositories
+
+  name        = each.key
+  visibility  = each.value.visibility
+  description = each.value.description
+
+  has_issues   = true
+  has_wiki     = each.value.has_wiki
+  has_projects = true
+
+  # NOTE: lifecycle ブロックが無い。
+  # ADR 0001 §3（docs/adr/0001-repository-resource-structure.md）が
+  # `visibility` と `archived` を必須保護対象として確定している。
+  # 以下を追加すべき:
+  #   lifecycle {
+  #     ignore_changes = [visibility, archived]
+  #   }
+}

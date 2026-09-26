@@ -1,0 +1,12 @@
+# Files excluded from the HCP Terraform configuration tarball.
+#
+# HCP remote execution uploads the working directory as a tarball; .terraformignore
+# follows .gitignore syntax. Note: Terraform does NOT auto-read .gitignore, so this
+# file is needed even when paths are already gitignored.
+#
+# Keep this list narrow: only exclude paths that have no value to remote runs.
+
+# terraform-design-reviewer (Issue #20) fixtures and docs.
+# Contains *.tf.example files (intentionally non-evaluatable) and Markdown docs
+# for the local reviewer agent. Bundling them would only bloat the upload.
+docs/agents/

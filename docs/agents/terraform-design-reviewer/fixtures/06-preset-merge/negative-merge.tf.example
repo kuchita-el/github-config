@@ -1,0 +1,30 @@
+# Fixture (negative, A: merge パターン): ADR 0001 §1 通りの合成パターン。
+# 期待: 観点 6 は発火しない（A）。
+
+locals {
+  # 両 preset を ADR 0001 §1 通りに合成し、null 除去で未指定 override が
+  # base を null 上書きしないようにする。
+  repository_settings = {
+    for repo in keys(var.repositories) : repo => merge(
+      local.repository_security_preset,
+      local.repository_process_preset,
+      { for k, v in var.repositories[repo] : k => v if v != null }
+    )
+  }
+}
+
+resource "github_repository" "this" {
+  for_each = var.repositories
+
+  name        = each.key
+  visibility  = each.value.visibility
+
+  description            = local.repository_settings[each.key].description
+  homepage               = local.repository_settings[each.key].homepage
+  has_issues             = local.repository_settings[each.key].has_issues
+  delete_branch_on_merge = local.repository_settings[each.key].delete_branch_on_merge
+
+  lifecycle {
+    ignore_changes = [visibility, archived]
+  }
+}

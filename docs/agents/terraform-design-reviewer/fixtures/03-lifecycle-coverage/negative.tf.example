@@ -1,0 +1,21 @@
+# Fixture (negative): ADR 0001 §3 通りの lifecycle.ignore_changes を持つ。
+# 期待: 観点 3 は発火しない。
+
+resource "github_repository" "this" {
+  for_each = var.repositories
+
+  name        = each.key
+  visibility  = each.value.visibility
+  description = each.value.description
+
+  has_issues   = true
+  has_wiki     = each.value.has_wiki
+  has_projects = true
+
+  lifecycle {
+    # ADR 0001 §3 で確定された保護対象。
+    # - visibility: public ⇔ private の誤上書きは復旧コスト極大
+    # - archived: 書き込み不能状態への遷移は運用影響が大きい
+    ignore_changes = [visibility, archived]
+  }
+}

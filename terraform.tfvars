@@ -5,8 +5,8 @@ github_owner = "kuchita-el"
 
 repositories = {
   # gachanuma: the existing repo whose "main protection" ruleset is the source of
-  # truth for the base preset. status check contexts are gachanuma-specific.
-  # has_wiki=true overrides the security preset base (false).
+  # truth for the preset. status check contexts are gachanuma-specific.
+  # has_wiki=true overrides the security preset (false).
   gachanuma = {
     visibility                  = "public"
     has_wiki                    = true
@@ -14,16 +14,17 @@ repositories = {
     status_check_integration_id = 15368 # GitHub Actions
   }
 
-  # github-config: self-governance (dogfooding). No CI yet (#8), so no status
-  # check contexts — base branch protection only. Add contexts once #8 lands.
+  # github-config: self-governance (dogfooding). CI added in #8.
   "github-config" = {
-    visibility = "public"
+    visibility                  = "public"
+    status_check_contexts       = ["fmt", "validate", "tflint"]
+    status_check_integration_id = 15368 # GitHub Actions
   }
 
   # claude-shared-skills: onboarded by standardizing its pre-existing ruleset
-  # (which was enforcement=disabled) to the base preset. No CI → no contexts.
+  # (which was enforcement=disabled) to the preset. No CI → no contexts.
   # Imported via a temporary import {} block, then converged. See README.
-  # has_wiki=true overrides the security preset base (false).
+  # has_wiki=true overrides the security preset (false).
   "claude-shared-skills" = {
     visibility = "public"
     has_wiki   = true

@@ -1,3 +1,58 @@
+locals {
+  # ---------------------------------------------------------------------------
+  # Branch-protection preset, applied to every managed repository.
+  # Values originally mirrored the gachanuma "main protection" ruleset so
+  # existing repos imported to a no-op; allowed_merge_methods now follows
+  # ADR 0005 (squash only). Override per repository via var.repositories.
+  # ---------------------------------------------------------------------------
+  branch_protection_preset = {
+    name        = "main protection"
+    target      = "branch"
+    enforcement = "active"
+
+    # Boolean rules (presence = enforced).
+    creation            = true
+    deletion            = true
+    non_fast_forward    = true
+    required_signatures = true
+
+    # pull_request rule.
+    required_approving_review_count   = 0
+    dismiss_stale_reviews_on_push     = true
+    require_code_owner_review         = false
+    require_last_push_approval        = false
+    required_review_thread_resolution = true
+    allowed_merge_methods             = ["squash"]
+
+    # required_status_checks rule (contexts are repo-specific → injected per repo).
+    strict_required_status_checks_policy = true
+    do_not_enforce_on_create             = false
+  }
+}
+
+locals {
+  # ---------------------------------------------------------------------------
+  # Effective settings per repository = preset merged with per-repo override.
+  # merge() args:
+  #   1. branch_protection_preset — all base values
+  #   2. non-null override keys that exist in the preset (contains filter excludes status_check_*)
+  #   3. status_check_* injected explicitly (repo-specific keys absent from the preset)
+  # ---------------------------------------------------------------------------
+  branch_protection = {
+    for repo, ovr in var.repositories : repo => merge(
+      local.branch_protection_preset,
+      {
+        for k, v in ovr : k => v
+        if v != null && contains(keys(local.branch_protection_preset), k)
+      },
+      {
+        status_check_contexts       = ovr.status_check_contexts
+        status_check_integration_id = ovr.status_check_integration_id
+      }
+    )
+  }
+}
+
 # Branch protection (Repository Ruleset) for every managed repository.
 # One ruleset per repo, expanded with for_each keyed by repository name so that
 # adding/removing a repo never recreates the others.

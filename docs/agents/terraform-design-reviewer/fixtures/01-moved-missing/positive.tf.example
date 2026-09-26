@@ -1,0 +1,36 @@
+# Fixture (positive): for_each キー変更ありなのに moved ブロックがない。
+# 元: branch_protection.tf の resource "github_repository_ruleset" "branch_protection"
+# 期待: 観点 1 が blocker で発火。
+#
+# 差分イメージ（before → after の after 状態）:
+#   for_each = local.branch_protection            (削除)
+#   for_each = local.branch_protection_v2_keyed   (追加。キースキーマが変わる想定)
+
+resource "github_repository_ruleset" "branch_protection" {
+  # キースキーマがリポ名から「リポ名:default-branch」形式に変わった想定。
+  # ADR 0001 もしくは別 issue でこの変更が決まったが、moved ブロックがない。
+  for_each = local.branch_protection_v2_keyed
+
+  name        = each.value.name
+  repository  = each.value.repository
+  target      = each.value.target
+  enforcement = each.value.enforcement
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+  }
+
+  rules {
+    creation = each.value.creation
+  }
+}
+
+# NOTE: 同一 PR 内に対応する moved ブロックが無い。
+# 例えば次のような moved {} を追加すべき:
+#   moved {
+#     from = github_repository_ruleset.branch_protection["gachanuma"]
+#     to   = github_repository_ruleset.branch_protection["gachanuma:main"]
+#   }
