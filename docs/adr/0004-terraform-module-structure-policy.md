@@ -79,7 +79,7 @@
 |---|---|---|---|
 | `branch_protection` | `github_repository_ruleset`（target は branch） | 1:1 | public のみ（リソース単位） |
 | `tag_protection` | `github_repository_ruleset`（target は tag） | 1:1 | public のみ（リソース単位） |
-| `repository` | `github_repository` | 1:1 | private にも適用。使えない属性がありうる（属性単位） |
+| `repository` | `github_repository` と `github_branch_default` | 1:1 | private にも適用。使えない属性がありうる（属性単位） |
 | `labels` | `github_issue_label` または `github_issue_labels` | 1:N | 無し |
 | `dependabot_security_updates` | `github_repository_dependabot_security_updates` | 1:1 | 要確認 |
 | `actions_permissions` | `github_actions_repository_permissions` と `github_workflow_repository_permissions` | 1:1 | 無し |
