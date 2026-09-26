@@ -244,13 +244,44 @@ Agent(
 
 規則は [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §3〜§6 にある。ここには手順の順序だけを書く。
 
-1. 設定種別名を ADR 0004 §3 の適用表か分類手順で決め、`<concern>.tf` を1枚足す（例: ラベルなら `labels.tf`）。1つの設定種別が複数のリソース型を使ってよい。
+1. 設定種別名を ADR 0004 §3・§5 で決め、`<concern>.tf` を1枚足す（例: ラベルなら `labels.tf`）。1つの設定種別が複数のリソース型を使ってよい。
 2. 属性ごとに ADR 0004 §4 で値の区分（リポ固有値 / 類型決定値 / 全リポ共通値）を決め、区分ごとの置き場所（`repositories.<k>.<concern>.*` / `local.<concern>_profile_defaults` / `local.<concern>_preset`）に置く。
-3. 特定のリポで類型決定値・全リポ共通値から外す必要がある属性は、ADR 0004 の例外台帳へ登録する（登録と per-repo のフィールドの追加を同じ変更で行う）。
+3. 特定のリポで類型決定値・全リポ共通値から外す必要がある属性は、下記「例外台帳」へ登録する（登録と per-repo のフィールドの追加を同じ変更で行う）。
 4. visibility で適用範囲を絞る場合は、適用対象の集合 `local.<concern>_targets` を置く（ADR 0004 §6）。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（上記「既存リポの取り込み（import）」。実値の食い違いは ADR 0004 §4）。
 
 > 既存の `branch_protection.tf`（`merge()` による合成）と `repository.tf`（`repositories` のフィールド既定値）は ADR 0004 以前のパターンのままで、ADR 0004 の値の区分への移行は別 Issue で行う（ADR 0004 の帰結）。
+
+---
+
+## 手順: リポの visibility を切り替える
+
+Ruleset（`branch_protection` / `tag_protection`）は public リポにだけ適用する（[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §6）。visibility は `lifecycle.ignore_changes` の対象なので、UI の変更と宣言値の変更の順序を守る。
+
+**public → private**（宣言値を先に変える）:
+
+1. UI で変える前に、`terraform.tfvars` の当該リポの `visibility` を `private` にした PR を作る。
+2. plan で、destroy が当該リポの Ruleset 系のインスタンスだけであり、他のリポと他の設定種別に変化が無いことを確かめて apply する。
+3. apply の後に UI で当該リポを private にする。apply から UI の変更までの間、当該リポに Ruleset は無い（意図どおり）。
+
+**private → public**（UI を先に変える）:
+
+1. UI で当該リポを public にする。
+2. `gh api repos/{owner}/{repo}/rulesets` で GitHub 側に既存の Ruleset が残っていないかを確かめる。残っていれば「既存リポの取り込み（import）」の手順で取り込む。
+3. `visibility` を `public` にした PR を作り、plan で当該リポの Ruleset 系のインスタンスが create として現れることを確かめて apply する。
+
+**手順に反して UI だけで private にした場合**: 宣言値が public のままなので plan 上は変化しないが、refresh で呼ぶ Ruleset の取得 API が private の Free リポで失敗するおそれがある（未確認）。宣言値を private に直して plan する。失敗した場合の復旧手順は、private リポを最初に管理対象へ加える Issue（#4）で API の応答を確認してから追記する。
+
+---
+
+## 例外台帳
+
+類型決定値・全リポ共通値のうち、特定のリポで値を変えることを許した属性の一覧。登録の要件・手続きは [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §4「例外台帳」に従う（per-repo のフィールドの追加と行の追加を同じ変更で行い、所有者の承認を得る）。
+
+| 設定種別 | 属性 | 元の区分 | 理由 | 登録した Issue / PR | 使用リポとリポごとの理由 | 見直しの条件 |
+|---|---|---|---|---|---|---|
+
+現時点で登録なし。
 
 ---
 
