@@ -17,7 +17,7 @@
 terraform.tfvars (管理対象リポ + リポ別override)
         │
         ▼
-branch_protection.tf  branch_protection_preset(全リポ共通の既定) + セレクター式（!= null ? : ）で override 合成
+branch_protection.tf  branch_protection_preset(全リポ共通の既定) + merge() でリポ別の値と合成（ADR 0002。移行 Issue で ADR 0004 の値の区分へ移す）
                       github_repository_ruleset を for_each でリポ単位に展開
         │
         ▼
@@ -37,7 +37,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 **TF 管理下の設定は「あるべき状態」を強制する。** GitHub UI で手動変更しても、次回 `terraform plan` で drift として検出され、`apply` で宣言値へ revert される。
 
-- リポ個別のカスタマイズは UI で行わず、**`terraform.tfvars` の override として記述**する。
+- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) の例外台帳に登録した属性だけで、それ以外は類型または全リポ共通の値に従う（ADR 0004 §4）。
 - 既存リポを管理対象に入れるときは、**必ず `import` → `plan` で no-op 確認**してから `apply` する（いきなり apply すると既存設定を上書き新規作成する事故になる）。
 
 ---
@@ -140,7 +140,7 @@ terraform validate     # 構文・スキーマ検証
    ```bash
    gh api repos/<owner>/<repo>/rulesets --jq '.[] | {id, name}'
    ```
-2. `terraform.tfvars` の `repositories` に対象リポを追加（status check contexts 等を実態に合わせる）。
+2. `terraform.tfvars` の `repositories` に対象リポを追加（リポ固有値〔status check contexts など〕を実態に合わせる）。
 3. import ブロックを一時的に追加する（`import.tf` を作成。アドレスは `for_each` キー＝リポ名）:
    ```hcl
    import {
@@ -151,6 +151,9 @@ terraform validate     # 構文・スキーマ検証
    ```
 4. `terraform plan` を実行し、**`0 to add, 0 to change, 0 to destroy`（import のみ）** になるまで
    `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。
+   ただし、類型決定値・全リポ共通値と実態が食い違う場合は、`terraform.tfvars` や preset を実態へ寄せず、
+   [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §4 の「取り込み時の食い違い」に従う
+   （理由のある差は例外台帳へ登録し、由来の無い差は取り込み前に所有者の承認を得て GitHub 側の実値を変える）。
    差分が出やすい箇所: `allowed_merge_methods` の順序、`required_check` の集合、`integration_id` の有無、`enforcement`。
    ```
    Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
@@ -236,13 +239,13 @@ Agent(
 
 ## 手順: 設定種別を追加する（branch protection 以外）
 
-将来 labels / dependabot / merge settings 等を足すときのパターン:
+規則は [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §3〜§6 にある。ここには手順の順序だけを書く。
 
-1. 新しい設定種別ごとに `*.tf` ファイルを1枚追加（例: `repository_labels.tf`）。
-2. 全リポ共通の既定値は当該 `*.tf` 冒頭に `local.<resource>_preset` として定義（ADR 0001）。
-3. リポ別差分は `variables.tf` の `repositories` object に optional 属性を足し、`terraform.tfvars` で注入。
-4. リソースは `for_each = local.<新設定>` でリポ単位に展開（1設定種別 = 1リソース）。
-5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
+1. 設定種別名を ADR 0004 §3 の適用表か分類手順で決め、`<concern>.tf` を1枚足す（例: ラベルなら `labels.tf`）。1つの設定種別が複数のリソース型を使ってよい。
+2. 属性ごとに ADR 0004 §4 で値の区分（リポ固有値 / 類型決定値 / 全リポ共通値）を決め、区分ごとの置き場所（`repositories.<k>.<concern>.*` / `local.<concern>_profile_defaults` / `local.<concern>_preset`）に置く（名前と配置は ADR 0004 §5）。
+3. 特定のリポで類型決定値・全リポ共通値から外す必要がある属性は、ADR 0004 の例外台帳へ登録する（登録と per-repo のフィールドの追加を同じ変更で行う）。
+4. visibility で適用範囲を絞る場合は、適用対象の集合 `local.<concern>_targets` を置く（ADR 0004 §6）。
+5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（上記「既存リポの取り込み（import）」。実値の食い違いは ADR 0004 §4）。
 
 ---
 
@@ -280,7 +283,7 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 | 症状 | 原因・対処 |
 |---|---|
 | `403 Resource not accessible by integration` | App に対象リポの **Administration: Read and write** が無い、対象リポが **インストール対象に含まれていない**、または provider の `owner` 未設定。手順3（権限・Selected repositories）を見直す |
-| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`branch_protection.tf` を実態へ寄せる |
+| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`branch_protection.tf` を実態へ寄せる。ただし、類型決定値・全リポ共通値と実態が食い違う場合は寄せず、[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §4 の「取り込み時の食い違い」に従う |
 | Speculative Plan が PR 起票後に自動起動しない | HCP Workspace の Settings → Version Control で VCS 連携が未設定か "Automatic speculative plans on pull requests" が無効。連携 UI を確認する |
 | GitHub Checks に HCP Terraform の check が現れない | GitHub App（Terraform Cloud）がリポにインストールされていないか権限が不足。HCP の VCS 設定画面の手順に従い GitHub App を再インストールする |
 | Speculative Plan が `Error` / `Failed` で終わる | `.tf` 構文エラー・provider 認証失敗・変数未定義が原因のことが多い。HCP UI の Run ログで詳細を確認し、ローカルで `terraform validate` / `terraform fmt` を実施する |

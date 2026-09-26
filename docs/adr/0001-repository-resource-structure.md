@@ -2,9 +2,11 @@
 
 ## ステータス
 
-改訂済（2026-06-21、[#63](https://github.com/kuchita-el/github-config/issues/63)）。初版は 2026-06-20 承認済。
+改訂済（2026-09-26、[#32](https://github.com/kuchita-el/github-config/issues/32)）。前回の改訂は 2026-06-21（[#63](https://github.com/kuchita-el/github-config/issues/63)）、初版は 2026-06-20 承認済。
 
-改訂範囲: 決定 §1（リソース構造）および §1 に紐づく根拠・代替案・影響セクション。決定 §2（topics 方針）／決定 §3（`lifecycle.ignore_changes` 範囲）／付録 A・B は変更していない。
+#63 の改訂範囲: 決定 §1（リソース構造）および §1 に紐づく根拠・代替案・影響セクション。決定 §2（topics 方針）／決定 §3（`lifecycle.ignore_changes` 範囲）／付録 A・B は変更していない。
+
+#32 の改訂範囲: [ADR 0004](0004-terraform-module-structure-policy.md)（Terraform module 構造の方針と類型プロファイル）の決定に合わせ、決定 §1（見出し、値の置き場所、per-repo で変えられる範囲、参照先、変数レイアウトの図、適用範囲、`branch_protection.tf` との一貫性）、根拠 §1、影響の3小節（「子Issue #16 / #17 への影響」「既存 `branch_protection.tf` への波及」「新規リポ追加時の影響」）と「import 戦略への影響」の該当行、ロールバック可能性を書き換えた。#63 の改訂履歴、決定 §2・§3、根拠 §2〜§4、代替案、リポ名変更の節、付録 A・B は変更していない。書き換えた条項の一覧は、ADR 0004 の影響「ADR 0001 との関係」にある。
 
 本改訂により [ADR 0002](0002-branch-protection-preset-merge-pattern.md)（`branch_protection` の `merge()` + null 除去パターン統一、2026-06-21 承認）は superseded となる（§1「適用範囲」が `repositories` 変数全体に及び、`branch_protection` 側も同じ variable defaults パターンへ統一する方針となるため）。
 
@@ -37,7 +39,7 @@
 
 ## 決定
 
-### 1. リソース構造: `repository.tf` 1ファイル集約 + variable defaults
+### 1. リソース構造: `repository.tf` 1ファイル集約 + 値の区分に応じた直接参照
 
 > **改訂履歴**: 旧版は「案 B'（リソース1本・preset を動機軸で locals 分割）」を採用していたが、以下2点の問題が判明したため改訂した（[#63](https://github.com/kuchita-el/github-config/issues/63)）。
 > - resource ブロックは Terraform 言語仕様上 `repository.tf` 1ファイルに集約する制約があり、属性変更時は `repository.tf` と動機軸ファイルの2ファイルを開く必要が生じ「動機軸の可視化」が成立しない。
@@ -47,32 +49,42 @@
 >
 > **ADR 0002 との関係**: 本改訂と並行して [ADR 0002](0002-branch-protection-preset-merge-pattern.md)（[Issue #43](https://github.com/kuchita-el/github-config/issues/43)、2026-06-21 承認）が `branch_protection` を旧 ternary パターンから `merge()` + null 除去パターンへ統一していた。本改訂が採用する `optional(type, default)` は `merge()` パターンの上位解（型安全性と合成パターン一本化を同時達成）であり、本改訂の「適用範囲」が `repositories` 変数全体に及ぶことから ADR 0002 は本改訂で **superseded** となる（ADR 0002 のステータスを Superseded へ更新済）。`branch_protection.tf` の `merge()` パターンから variable defaults への実コード移行は別 Issue で実施する。
 
+> **改訂履歴（#32）**: 2026-09-26 に [#32](https://github.com/kuchita-el/github-config/issues/32) で本節を改訂した。所有者が「可能な限り個別のオーバーライドを許可するよりは、プロファイルごとの型にはめて使える運用にしたい」という方針を示したため、次の2点を改めた（[ADR 0004](0004-terraform-module-structure-policy.md)）。
+> - #63 の改訂は全リポ共通の値（preset）を `repositories` のフィールド既定値に置いたが、これは per-repo で上書きできる経路そのものである。属性の値をリポ固有値 / 類型決定値 / 全リポ共通値に区分し、類型決定値は `local.<concern>_profile_defaults`、全リポ共通値は `local.<concern>_preset` に置いて resource から直接参照する形に改めた（ADR 0004 §4）。per-repo で値を変えられるのは、リポ固有値と ADR 0004 の例外台帳に登録した属性だけになった。
+> - `repositories` のフィールドを設定種別ごとの入れ子にし、直下には `visibility` と類型の宣言 `profile`（必須）だけを置く形に改めた（ADR 0004 §5・§7）。
+>
+> これに伴い、上の「ADR 0002 との関係」が述べる `branch_protection.tf` の実コード移行は、移行先が ADR 0004 §4 の値の区分に変わった。移行は引き続き別 Issue で実施する（ADR 0004 の影響「branch_protection の移行 Issue」）。
+
 - `github_repository` resource ブロックは `repository.tf` 1枚に集約する。preset を動機軸別ファイル（`repository_security.tf` / `repository_process.tf`）の locals に分割する旧方針（案 B'）は採用しない。
-- preset 値は **`variables.tf` の `repositories` 変数のフィールドデフォルト** として `optional(type, default)` で持たせる。`local.*_preset` + `merge()` / null sentinel / ternary パターンは採用しない。
-  - 例: `archived = optional(bool, false)` で preset 値（4リポ共通値）を直接デフォルト化し、resource ブロックは `var.repositories[each.key].archived` を**直接参照**する。
-  - per-repo override は変数値で該当フィールドを上書きする（未指定なら型レベルでデフォルトが入る）。null センチネルおよび `merge()` 合成式は不要となる。
+- 属性の値の置き場所は、[ADR 0004](0004-terraform-module-structure-policy.md) §4 の値の区分で決める。リポ固有値は `repositories` 変数のフィールド、類型決定値は `local.<concern>_profile_defaults`、全リポ共通値は `local.<concern>_preset`（どちらも設定種別ファイルの冒頭の locals）に置き、resource から直接参照する。`merge()` による合成は採用しない。null センチネルと三項演算子は、ADR 0004 の例外台帳に登録した属性の null フォールバックに限って使う。visibility による適用可否の条件分岐（ADR 0004 §6）はこの対象外である。
+  - 例: リポ固有値の `archived` は `repositories.<k>.repository.archived` に per-repo で宣言し、resource ブロックは `var.repositories[each.key].repository.archived` を**直接参照**する。全リポ共通値（例: `allow_merge_commit`。区分は #17 が確定する）は `local.repository_preset` に置き、resource ブロックは `local.repository_preset.allow_merge_commit` を直接参照する。
+  - per-repo で値を変えられるのは、リポ固有値と ADR 0004 の例外台帳に登録した属性だけである。台帳に登録していない類型決定値・全リポ共通値には、per-repo のフィールドを作らない（ADR 0004 §4）。
 - `repository.tf` のレイアウト（イメージ）:
   - `resource "github_repository" "this" { for_each = var.repositories ... }` を1ファイルに集約
-  - 属性値は `var.repositories[each.key].<attr>` を直接参照
+  - 属性値は区分ごとの置き場所から直接参照する（リポ固有値は `var.repositories[each.key].repository.<attr>`、`visibility` は `var.repositories[each.key].visibility`、全リポ共通値は `local.repository_preset.<attr>`、類型決定値は `local.repository_profile_defaults[var.repositories[each.key].profile].<attr>`）
   - `lifecycle { ignore_changes = [visibility, archived] }` を resource ブロック内に記述（決定 §3 参照）
 - variable 型レイアウト（イメージ・`variables.tf`）:
 
   ```hcl
   variable "repositories" {
     type = map(object({
-      visibility             = string                          # required
-      archived               = optional(bool, false)
-      allow_auto_merge       = optional(bool, false)
-      delete_branch_on_merge = optional(bool, false)
-      description            = optional(string, null)
-      has_wiki               = optional(bool, false)
-      # ...（残り属性も同様に optional(type, preset値) で宣言）
+      visibility = string # required。直下（ADR 0004 §5）
+      profile    = string # required。類型の宣言（ADR 0004 §7）
+
+      # 設定種別 repository のキー。置くのはリポ固有値と、ADR 0004 の例外台帳に登録した属性だけ
+      repository = object({
+        archived = bool # リポ固有値（#16 の AC により per-repo 必須）
+        # ...（#16 / #17 / #7 が ADR 0004 §4 でリポ固有値に区分した属性を宣言）
+      })
+      # 他の設定種別も、リポ固有値か台帳登録属性があるときだけ、設定種別名のキーを持つ
     }))
   }
+  # 類型決定値・全リポ共通値は repositories に置かず、repository.tf の冒頭の
+  # local.repository_profile_defaults / local.repository_preset に置く（ADR 0004 §4）
   ```
 
-- **適用範囲（branch protection override 含む）**: 本決定の variable defaults パターンは `repositories` 変数**全体**に適用する。現行 `branch_protection.tf` の `merge()` + null 除去パターン（ADR 0002 で確定）も同方針へ統一する（`variables.tf` 側で preset 値をデフォルト化、`branch_protection.tf` 側は `local.branch_protection_preset` / `merge()` 合成式を除去し `var.repositories[each.key].X` を直接参照）。実コード変更は本 ADR のスコープ外であり、別 Issue で実施する（`.tf` 変更は本改訂に含めない）。これにより ADR 0002 は本改訂で superseded となる。
-- **既存 `branch_protection.tf` との一貫性**: 改訂後は `branch_protection.tf` の「1ファイル=1リソース種別 + variable defaults」レイアウトと同一パターンになる。動機軸別ファイル分割という独自パターンを廃止し、既存規範および Terraform 公式スタイルガイド（[#59](https://github.com/kuchita-el/github-config/issues/59)）の `locals.tf` 集約規約と整合する。
+- **適用範囲（branch protection を含む）**: 値の区分（[ADR 0004](0004-terraform-module-structure-policy.md) §4）は全設定種別に適用する。現行 `branch_protection.tf` の `merge()` + null 除去パターン（ADR 0002 で確定）も同方針へ統一する。移行の内容（status_check の2属性の入れ子化、未使用の上書きフィールドの削除、`merge()` 式の削除と区分の置き場所からの直接参照）は、ADR 0004 の影響「branch_protection の移行 Issue」のとおりである。実コード変更は本 ADR のスコープ外であり、別 Issue で実施する（`.tf` 変更は本改訂に含めない）。ADR 0002 は #63 の改訂で superseded となった。
+- **既存 `branch_protection.tf` との一貫性**: `repository.tf` と `branch_protection.tf` は、どちらも「1ファイル=1設定種別」（ADR 0004 §5）のレイアウトになる。動機軸別ファイル分割という独自パターンを廃止し、既存規範および Terraform 公式スタイルガイド（[#59](https://github.com/kuchita-el/github-config/issues/59)）の locals の配置（ADR 0004 §5）と整合する。
 
 ### 2. `topics` の SoT 化方針: `github_repository.topics` 属性で管理
 
@@ -87,14 +99,14 @@
 
 ## 根拠
 
-### 1. リソース構造（1ファイル集約 + variable defaults 採用）
+### 1. リソース構造（1ファイル集約 + 値の区分に応じた直接参照）
 
-旧版で採用した案 B'（preset を動機軸別 locals に分割）は「動機軸の SoT 可視化」を狙ったが、resource ブロックを `repository.tf` 1ファイルに集約する技術制約のもとでは、属性変更時に `repository.tf` と動機軸ファイルの2ファイルを開く必要が生じ可視化が成立しなかった。さらに `local.*_preset` + `merge()` / null sentinel パターンは merged 後が `map(any)` となり静的型チェックを喪失する欠点があった。改訂後は以下4点の根拠で「**`repository.tf` 1ファイル集約 + `optional(type, default)` による variable defaults**」を採用する。
+旧版で採用した案 B'（preset を動機軸別 locals に分割）は「動機軸の SoT 可視化」を狙ったが、resource ブロックを `repository.tf` 1ファイルに集約する技術制約のもとでは、属性変更時に `repository.tf` と動機軸ファイルの2ファイルを開く必要が生じ可視化が成立しなかった。さらに `local.*_preset` + `merge()` / null sentinel パターンは merged 後が `map(any)` となり静的型チェックを喪失する欠点があった。#63 の改訂では「`repository.tf` 1ファイル集約 + `optional(type, default)` による variable defaults」を採用した。#32 の改訂で、値の置き場所を値の区分（リポ固有値 / 類型決定値 / 全リポ共通値）で決める形に改めた。値の区分を採った根拠は、[ADR 0004](0004-terraform-module-structure-policy.md) の根拠 §4 にある。現行の決定の根拠は次の4点である。
 
-- **型安全性の維持**: `optional(type, default)` で属性ごとに型と既定値を宣言すると、preset 値も per-repo override も同一の `map(object({...}))` 型に収まり、Terraform の型チェックが全属性に効く。`merge()` + null フィルタは merged 後が `map(any)` 化して属性名タイポや型ミスマッチを検出できなくなる問題を回避できる。
-- **行数とパターンの簡潔さ**: ternary（`ovr.X != null ? ovr.X : preset.X`）は属性数に比例して行数が増えるが、variable defaults では resource ブロックが `var.repositories[each.key].X` を直接参照するだけで済む。preset 値は型宣言1行に集約される。
-- **公式スタイルガイドとの整合**: Terraform 公式スタイルガイドの `locals.tf` 集約規約（[#59](https://github.com/kuchita-el/github-config/issues/59)）から逸脱しない。preset 値は variable のデフォルトとして表現され、独立した locals ファイル群を新設する必要がない。
-- **既存 `branch_protection.tf` との一貫性**: `branch_protection.tf` の「1ファイル=1リソース種別」レイアウトと同型になる。改訂時に branch_protection 側も同じ variable defaults パターンへ統一する（影響セクション「既存 `branch_protection.tf` への波及」参照）ことで、リポジトリ全体で単一の構造化パターンに揃う。
+- **型安全性の維持**: リポ固有値は型付きの `repositories` 変数（`map(object({...}))`）から、類型決定値と全リポ共通値は locals の object から、resource が直接参照する。存在しない属性の参照は `terraform validate` が拒否し、値の型は provider のスキーマで検査される。`merge()` + null フィルタは merged 後が `map(any)` 化して属性名タイポや型ミスマッチを検出できなくなる問題を回避できる。
+- **行数とパターンの簡潔さ**: ternary（`ovr.X != null ? ovr.X : preset.X`）を全属性に書くと属性数に比例して行数が増えるが、値の区分では resource ブロックが区分ごとの置き場所（`var.repositories[each.key].repository.X`、`local.repository_preset.X`、`local.repository_profile_defaults[var.repositories[each.key].profile].X`）を直接参照するだけで済む。ternary による null フォールバックは、ADR 0004 の例外台帳に登録した属性に限られる。
+- **公式スタイルガイドとの整合**: 類型決定値と全リポ共通値の locals は設定種別ファイルの冒頭に置き、複数のファイルから参照するものは `locals.tf` に置く（ADR 0004 §5）。これは Terraform 公式スタイルガイドの locals の配置（[#59](https://github.com/kuchita-el/github-config/issues/59)）どおりで、動機軸ごとの locals ファイル群を新設する必要がない。
+- **既存 `branch_protection.tf` との一貫性**: `branch_protection.tf` と同じ「1ファイル=1設定種別」のレイアウトになる。branch_protection 側も同じ値の区分へ統一する（影響セクション「既存 `branch_protection.tf` への波及」参照）ことで、リポジトリ全体で単一の構造化パターンに揃う。
 
 動機軸の可視化は ADR 本文と Issue #6 の動機軸定義によって担保し、ファイル分割では行わない方針へ転換する。属性ごとの動機（セキュリティ / 開発プロセス）はコード上のコメントで補足してもよい。
 
@@ -153,31 +165,31 @@
 ### 子Issue #16 / #17 への影響
 
 - **#16 セキュリティ系**:
-  - `repository.tf` を新設し、`resource "github_repository" "this" { for_each = var.repositories ... }` を定義する。属性値は `var.repositories[each.key].<attr>` を直接参照する（`merge()` / locals 合成は使わない）。
-  - `variables.tf` の `repositories` 型にセキュリティ系属性を `optional(type, default)` で宣言する。preset 値は4リポの共通値を `default` に直接設定する。対象属性: `archived`（default: `false`）, `allow_auto_merge`（default: `false`）, `has_wiki`（default: `false`）, `has_projects`（default: `true`）, `has_discussions`（default: `false`）。差分のある `has_wiki` は per-repo override で `true` を指定する。
+  - `repository.tf` を新設し、`resource "github_repository" "this" { for_each = var.repositories ... }` を定義する。属性値は `merge()` を使わず、区分ごとの置き場所（[ADR 0004](0004-terraform-module-structure-policy.md) §4）から直接参照する。
+  - セキュリティ系属性（`archived`, `allow_auto_merge`, `has_wiki`, `has_projects`, `has_discussions`）の区分は、#16 が ADR 0004 §4 の判定手順で決め、区分ごとの置き場所に置く（リポ固有値は `repositories.<k>.repository.*`、全リポ共通値は `local.repository_preset`、類型決定値は `local.repository_profile_defaults`。`archived` はリポ固有値）。付録 A の4リポの共通の値（`archived`: `false`、`allow_auto_merge`: `false`、`has_wiki`: `false`、`has_projects`: `true`、`has_discussions`: `false`）は候補値である。実値が区分の値と食い違う `has_wiki` は、ADR 0004 §4 の「取り込み時の食い違い」に従う。
   - `visibility` は型レベルで required（`optional` ではない）にし、resource ブロックで `visibility = each.value.visibility` のように直接渡す。
   - `repository.tf` の resource ブロック内に `lifecycle { ignore_changes = [visibility, archived] }` を記述する。
   - `repository_security.tf` / `repository_process.tf` は**新設しない**（locals 分割を行わない）。
 - **#17 開発プロセス系**:
-  - `variables.tf` の `repositories` 型に開発プロセス系属性を `optional(type, default)` で追記する。対象属性: `allow_squash_merge`（default: `true`）, `allow_merge_commit`（default: `true`）, `allow_rebase_merge`（default: `true`）, `delete_branch_on_merge`（default: `false`）, `default_branch`（default: `"main"`）, `description`（default: `null`）, `homepage`（default: `null`）, `topics`（default: `[]`）, `has_issues`（default: `true`）。差分のある `delete_branch_on_merge` / `description` は per-repo override で実値を指定する。
-  - `repository.tf` の resource ブロックには #16 時点で全属性参照を仕込む構成にできない場合、#17 で属性参照を追記する。`merge()` 合成式や locals 値の追記といった作業は発生しない（variable defaults に集約されるため）。
-- **per-repo override**: 差分のある3属性（`delete_branch_on_merge` / `description` / `has_wiki`）を `terraform.tfvars` の対応リポエントリに追記する。preset と一致する属性は記述しない（型レベルで default が適用される）。
+  - 開発プロセス系属性（`allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `delete_branch_on_merge`, `default_branch`, `description`, `homepage`, `topics`, `has_issues`）の区分は、#17 が ADR 0004 §4 の判定手順で決め、区分ごとの置き場所に置く。付録 A の共通の値（`allow_squash_merge`: `true`、`allow_merge_commit`: `true`、`allow_rebase_merge`: `true`、`delete_branch_on_merge`: `false`、`default_branch`: `"main"`、`homepage`: `null`、`topics`: `[]`、`has_issues`: `true`）は候補値である。`description` はリポ固有値の見込みで、実値を `repositories.<k>.repository.description` に書く。実値が区分の値と食い違う `delete_branch_on_merge` は、ADR 0004 §4 の「取り込み時の食い違い」に従う。
+  - `repository.tf` の resource ブロックには #16 時点で全属性参照を仕込む構成にできない場合、#17 で属性参照を追記する。`merge()` 合成式の追記は発生しない（値は区分ごとの置き場所に集約されるため）。
+- **per-repo の値**: リポ固有値（`description` など）は `terraform.tfvars` の対応リポエントリに書く。実値が類型決定値・全リポ共通値と食い違う属性（`delete_branch_on_merge` / `has_wiki`）は、`terraform.tfvars` に per-repo の値を書いて合わせず、ADR 0004 §4 の「取り込み時の食い違い」に従う（理由のある差は例外台帳へ登録し、由来の無い差は取り込み前に所有者の承認を得て実値を変える）。
 - **着手順序の制約**: #16 が `repository.tf` の resource ブロックと `variables.tf` のセキュリティ系属性宣言を先に配置するため、#17 は #16 のマージ後に着手する（#16 → #17 の直列依存）。
 
 ### 既存 `branch_protection.tf` への波及（範囲外、ADR 0002 を supersede）
 
-決定 §1 の variable defaults パターンは `repositories` 変数全体に適用するため、現行 `branch_protection.tf`（ADR 0002 で確定した `merge()` + null 除去 + `contains` フィルタパターン）も同方針へ統一する必要がある。ただし本 ADR は方針宣言のみで、**実コード変更は本 ADR のスコープ外**であり別 Issue で実施する。実装時は以下を行う:
+決定 §1 の値の区分（[ADR 0004](0004-terraform-module-structure-policy.md) §4）は全設定種別に適用するため、現行 `branch_protection.tf`（ADR 0002 で確定した `merge()` + null 除去 + `contains` フィルタパターン）も同方針へ統一する必要がある。ただし本 ADR は方針宣言のみで、**実コード変更は本 ADR のスコープ外**であり別 Issue で実施する（ADR 0004 の影響「branch_protection の移行 Issue」）。実装時は以下を行う:
 
-- `variables.tf` の `repositories` 型に branch protection 系属性を `optional(type, default)` で再宣言（現行は `optional(type)` のみで default が無い）し、`branch_protection.tf` の `local.branch_protection_preset` の値をそのまま default として移植する。
-- `branch_protection.tf` の `local.branch_protection` for 式（`merge(local.branch_protection_preset, { for k, v in ovr : k => v if v != null && contains(...) }, { status_check_* = ... })` 構造）を全削除し、`var.repositories[each.key].X` 直接参照へ書き換える。`status_check_contexts` / `status_check_integration_id` は既に `optional` 宣言済みなので、特殊扱い（`contains` フィルタ + 第3引数明示注入）が不要になる。
-- `local.branch_protection_preset` および `local.branch_protection` for 式は削除可能（`name` / `target` 等の固定値は resource ブロックに直接記述する）。
+- `status_check_contexts` / `status_check_integration_id` を `repositories.<k>.branch_protection.*` へ入れ子にし、`variables.tf` の未使用の上書きフィールド9つ（`enforcement` など）を削除する。全リポ共通値は `local.branch_protection_preset` に置いたままにする。
+- `branch_protection.tf` の `local.branch_protection` for 式（`merge(local.branch_protection_preset, { for k, v in ovr : k => v if v != null && contains(...) }, { status_check_* = ... })` 構造）を削除し、全リポ共通値は `local.branch_protection_preset.X` から、リポ固有値は `var.repositories[each.key].branch_protection.X` から直接参照する。`status_check_contexts` / `status_check_integration_id` は入れ子のパスから直接参照するので、特殊扱い（`contains` フィルタ + 第3引数明示注入）が不要になる。
+- `local.branch_protection` for 式は削除する。`local.branch_protection_preset` は全リポ共通値の置き場所として残し、`name` / `target` を含む共通値を resource ブロックから直接参照する（ADR 0004 §5 の旧→新の対応表）。
 
 切り替えは `terraform plan` で "No changes" を確認しながら段階的に進める。実コード変更後は ADR 0002 も superseded ステータスのまま履歴として残す（削除しない）。
 
 ### import 戦略への影響
 
 - 4リポは既に GitHub 側で稼働中のため、Terraform `import` → `terraform plan` "No changes" 収束で取り込む（破壊回避）。
-- 4リポすべて差分表（付録 A）の値で `import` 後、`variables.tf` の `optional(type, default)` 既定値 + per-repo override（差分のある属性のみ `terraform.tfvars` に記述）を組めば "No changes" になる前提で実装する。
+- 4リポすべて差分表（付録 A）の値で `import` 後、リポ固有値を `terraform.tfvars` に書き、区分の値（類型決定値・全リポ共通値）と食い違う属性を ADR 0004 §4 の「取り込み時の食い違い」で扱えば "No changes" になる前提で実装する。
 - `import` 実行は #16 で実施（`github_repository` resource ブロック導入時）。#17 は同一 resource への属性追加なので `import` 不要だが、preset 拡張後に `terraform plan` "No changes" を再確認する。
 
 ### リポジトリ名変更時の destroy リスクと `moved` ブロックによる回避
@@ -201,11 +213,12 @@
 ### 新規リポ追加時の影響
 
 - 新規リポは Terraform 経由で作成する（Issue #6 前提）。`repositories` 変数に該当リポのエントリを追加 → `terraform apply` で作成。
-- override 不要（`optional(type, default)` の既定値で全てカバー）な属性のリポなら、`visibility`（required）のみ宣言で済む。
+- 新規リポのエントリには、`visibility` と `profile`（ともに required。[ADR 0004](0004-terraform-module-structure-policy.md) §7）と、必須のリポ固有値を宣言すれば済む。類型決定値と全リポ共通値は、区分の置き場所の値が適用される。
 
 ### ロールバック可能性
 
-- 構造変更（1ファイル集約 + variable defaults ↔ 案 B' 相当の locals 分割）: `variables.tf` の `optional(type, default)` から default 値を抜き、`repository_security.tf` / `repository_process.tf` を新設して `local.*_preset` を定義、`repository.tf` の resource ブロックで `merge()` 合成式へ書き換える。型安全性を犠牲にする欠点が残るため通常はロールバック対象外。Terraform state は変わらず `moved` ブロック不要。
+- 構造変更（1ファイル集約 + 値の区分 ↔ 案 B' 相当の locals 分割）: `repositories` のフィールドと `local.repository_preset` / `local.repository_profile_defaults` から値を移し、`repository_security.tf` / `repository_process.tf` を新設して `local.*_preset` を定義、`repository.tf` の resource ブロックで `merge()` 合成式へ書き換える。型安全性を犠牲にする欠点が残るため通常はロールバック対象外。Terraform state は変わらず `moved` ブロック不要。
+- #32 の改訂を戻す（値の区分 → #63 の改訂時の variable defaults）: 類型決定値・全リポ共通値を `repositories` のフィールド既定値へ戻す。既定値からは類型を参照できないので、類型で値が異なる属性は各リポの `terraform.tfvars` に値を書く形になる。型定義と `terraform.tfvars` の書き換えだけで、Terraform state は変わらない。
 - 構造変更（属性管理 ↔ 案 C 補助リソース分離）: 補助リソース分離は `moved` ブロック整備 + `terraform state mv` が必要。コストは中程度。
 - `topics` 方針の変更（属性管理 → ignore_changes 追加）: `lifecycle.ignore_changes` 追記のみで切り替え可能。低コスト。
 

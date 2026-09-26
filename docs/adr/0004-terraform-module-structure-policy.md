@@ -118,7 +118,7 @@
   - 発火時の行動: 構成を見直す Issue を起票する
   - 観点9: 対象外（HCP の実行結果が要る）
 
-**区分 C の発火時の行動**: 構成を見直す Issue を起票する。見直しの Issue では、公式スタイルガイドが大きなコードベースに勧める Workspace の分割と、リソースのモデリングの見直し（集約型リソースの採用など）を比べる。閾値を超えたこと自体は分割の理由にしない。
+**区分 C の発火時の行動**: 構成を見直す Issue を起票する。見直しの Issue では、公式スタイルガイドが大きなコードベースに勧める Workspace の分割と、リソースのモデリングの見直し（集約型リソースの採用など）を比べる。閾値を超えたこと自体は分割の理由にしない。見直しの Issue が Workspace の分割を結論した場合は、その結論を新しい ADR（または本 ADR §2 の改訂）として記録してから分割する。
 
 #### 発動条件に採らないもの
 
@@ -160,7 +160,7 @@
 
 **表に無い設定種別の分類手順**（上から順にたどる）:
 
-1. 設定種別名を決める。追加する設定が `github_repository` の属性なら、設定種別 `repository` に加え、新しい設定種別は作らない。それ以外は、GitHub 上の機能名を snake_case にしたものを設定種別名とする（§5）。
+1. 設定種別名を決める。追加する設定が `github_repository` の属性なら、設定種別 `repository` に加え、新しい設定種別は作らない。それ以外は、GitHub 上の機能名を snake_case にしたものを設定種別名とする（語形の規則を含め §5）。
 2. §2 A-1 に従い、使うリソース型の API が要求する App の権限を確かめる。
 3. 1リポあたりの基数を決める。1リポに1インスタンスなら 1:1（基本パターン）、1リポに複数の要素を持つなら 1:N（例外パターン「1:N の集合」）とする。
 4. visibility の制約を確かめる。Free の private リポで使えるかを GitHub Docs で確かめ、リソース全体が使えなければリソース単位、一部の属性だけが使えなければ属性単位で出し分ける（§6）。使えるなら制約なしとする。
@@ -234,7 +234,7 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 
 1. 食い違いの由来を判定する。リポの性質から来る差で、上の「登録の要件」を満たし理由を書けるものを「理由のある差」、過去の UI 操作の名残など理由を書けないものを「由来の無い差」とする。
 2. 理由のある差は、例外台帳に恒久的に登録し（登録の手続きに従う）、per-repo の値として実値を宣言して、import の plan を no-op にする。
-3. 由来の無い差は、取り込みの前に GitHub 側の実値を区分の値へ変え、そのうえで import の plan が no-op であることを確かめて取り込む。実値の変更は外から観測される振る舞いの変更なので、リポと属性ごとに所有者の承認を得てから行い、取り込み Issue に記録する（リポ、属性、変更前後の値、承認）。
+3. 由来の無い差は、取り込みの前に GitHub 側の実値を区分の値へ変え、そのうえで import の plan が no-op であることを確かめて取り込む。実値の変更は外から観測される振る舞いの変更なので、リポと属性ごとに所有者の承認を得てから行い、取り込み Issue に記録する（リポ、属性、変更前後の値、承認）。所有者が実値の変更を承認しなかった場合は、「所有者が変更しないと判断した」を理由として例外台帳に登録し（登録の手続きに従う）、per-repo の値として実値を宣言して取り込む。
 
 - `terraform.tfvars`、`local.<concern>_preset`、`local.<concern>_profile_defaults` を、食い違ったリポの実態へ寄せない（共通値や類型の表を寄せると、そのリポ以外の方針も変わる）。CLAUDE.md §2 の手順2 が述べる「`terraform.tfvars` / `branch_protection.tf` を実態へ寄せる」は、リポ固有値と、台帳登録属性の per-repo の値に限って行う。
 - import と同じ plan で、食い違う属性を in-place update する手順は採らない。CLAUDE.md §2 は、import の plan が `0 to change` であることを求めている。
@@ -258,6 +258,12 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 
 - **ファイル名**: 設定種別ファイルの名前は `<concern>.tf` とする（`<concern>` は設定種別名）。設定種別に属さない root 直下のファイルは、`terraform.tf` / `providers.tf` / `variables.tf` / `locals.tf` / `outputs.tf` とする。既存の `branch_protection.tf`（設定種別ファイル）と `providers.tf` / `terraform.tf` / `variables.tf`（設定種別に属さないファイル）は、この規則に適合する。
 - **設定種別名**: GitHub 上の機能名を snake_case にしたものとし、`github_` や `repository_` の接頭辞は付けない（全設定種別がリポ単位なので冗長になる）。ただし `github_repository` 自体の設定種別は `repository` とする。既知の設定種別名は §3 の適用表の6つ（`branch_protection` / `tag_protection` / `repository` / `labels` / `dependabot_security_updates` / `actions_permissions`）で確定する。
+- **設定種別名の語形（単数・複数）**: 名前が provider のリソース型名に由来する場合は、その型名の単数・複数に従う。1つのリソース型を複数の関心事で使う場合（`github_repository_ruleset`）は、`<対象>_protection` とする。既知の6つへの当てはめは次のとおりである。
+  - `branch_protection` / `tag_protection`: `github_repository_ruleset` を branch と tag の2つの関心事で使うので、`<対象>_protection`。
+  - `repository`: `github_repository` の単数形。
+  - `dependabot_security_updates`: `github_repository_dependabot_security_updates` の複数形。
+  - `actions_permissions`: `github_actions_repository_permissions` / `github_workflow_repository_permissions` の複数形（permissions）。
+  - `labels`: 集約型の `github_issue_labels` の複数形に合う。#5 が要素単位の `github_issue_label`（単数形）を選んだ場合は型名の語形と合わないが、既知の6つは適用表で確定しており、名前は変えない。
 - **resource ラベル**: 設定種別名とする（既存の `github_repository_ruleset.branch_protection` と同じ形）。1つの設定種別が2つのリソース型を使う場合も、それぞれ設定種別名とする（例: `github_actions_repository_permissions.actions_permissions` と `github_workflow_repository_permissions.actions_permissions`）。ADR 0001 が決めた `github_repository.this` はそのまま残す。
 - **`repositories` のフィールド構造**:
   - `repositories.<k>` の直下には、`visibility` と類型（フィールド名 `profile`。`local.<concern>_profile_defaults` と名前を揃える）だけを置く。
@@ -294,7 +300,12 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
   | `targets` | visibility などで絞り込んだ適用対象の集合（`for_each` に渡す） | `local.tag_protection_targets` |
   | `instances` | `for_each` に渡す、1:N の集合を展開した結果 | `local.labels_instances` |
 
-- **locals の配置**: 1つのファイルだけで使うものはそのファイルの冒頭に置き、複数のファイルから参照するものは `locals.tf` に置く（公式スタイルガイド「Terraform style guide」の locals の配置の要旨。2026-09-26 確認）。
+- **locals の配置**: 1つのファイルだけで使うものはそのファイルの冒頭に置き、複数のファイルから参照するものは `locals.tf` に置く。公式スタイルガイドの「Local values」節（<https://developer.hashicorp.com/terraform/language/style#local-values>、2026-09-26 取得）の原文どおりである。
+
+  > Define local values in one of two places:
+  >
+  > - If you reference the local value in multiple files, define it in a file named `locals.tf`.
+  > - If the local value is specific to a file, define it at the top of that file.
 
 **旧→新の対応表**（AC4 が挙げる旧パターンと、現行コード・README の名前から、新しい配置への対応）:
 
@@ -319,7 +330,11 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 - **出し分けの2つの形**:
   - **リソース単位**: 設定種別ファイルの冒頭の `local.<concern>_targets` で、`for_each` の対象を visibility で絞り込む。
   - **属性単位**: private リポにも適用するリソース（`github_repository`）の中で、private では使えない属性を、visibility を条件にした条件分岐（dynamic ブロックか条件式）で出し分ける。これは適用可否の条件分岐であり、例外台帳の null フォールバックとも、per-repo の上書きとも別物である。例外台帳への登録は要らない。ADR 0001 の「三項演算子を採用しない」の対象外でもある。
-- **Ruleset は public リポのみに適用する**: branch 保護とタグ保護（`branch_protection` と `tag_protection`）の Ruleset は、public リポにだけ適用する。GitHub Free では、Ruleset は public リポでだけ使え、tag を対象とするものも同様である（#74 の参考欄に記録された 2026-09-26 の一次確認）。
+- **Ruleset は public リポのみに適用する**: branch 保護とタグ保護（`branch_protection` と `tag_protection`）の Ruleset は、public リポにだけ適用する。GitHub Docs「About rulesets」（<https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets>、2026-09-26 取得）は、次のように述べている。
+
+  > Rulesets are available in public repositories with GitHub Free and GitHub Free for organizations, and in public and private repositories with GitHub Pro, GitHub Team, and GitHub Enterprise Cloud. See GitHub's plans.
+
+  tag を対象とする Ruleset も同様であることは、#74 の参考欄に 2026-09-26 の一次確認として記録されている。
 - **状態遷移**:
 
   | 遷移前の宣言値 | 遷移後の宣言値 | Ruleset 系の設定種別 | その他の設定種別 | 作業者が確認すること |
@@ -360,6 +375,7 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
   - 所有者の dotfiles はローカル構成とする。
   - 個々の管理リポへの類型の割り当ては #72 が行い、本 ADR では行わない。
 - **1リポ1類型**: 1つのリポには類型を1つだけ宣言する。
+- **どの類型の定義にも当たらないリポ**: 判定基準（リポの変更がどこへ届くか）で最も近い類型を選ぶ。最も近い類型を1つに決められない場合は、本 ADR を改訂して類型を追加する。
 - **同居リポの選択規則**: リポが複数の類型の定義に当たる場合は、当たる類型のうち、次の順序で最も上位のものを選ぶ。
 
   **配布物 > インフラ > アプリ > ローカル構成**
@@ -402,11 +418,23 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 
 ### 1. 単一 root module の維持
 
-- **公式ガイドの位置づけ**: 公式ドキュメント「When to write a module」は、単一のリソース型を薄く包むだけの module を勧めず、module は新しい概念を表して抽象度を上げるときに使うものとしている（要旨。2026-09-26 確認）。本リポの設定種別は、いずれも管理リポごとに同じ設定を置くもので、module で包むと単一のリソース型の薄い包装になる。
+- **公式ガイドの位置づけ**: 公式ドキュメント「When to write a module」（<https://developer.hashicorp.com/terraform/language/modules/develop#when-to-write-a-module>、2026-09-26 取得）は、次のように述べている。
+
+  > A good module should raise the level of abstraction by describing a new concept in your architecture that is constructed from resource types offered by providers.
+
+  > We *do not* recommend writing modules that are just thin wrappers around single other resource types. If you have trouble finding a name for your module that isn't the same as the main resource type inside it, that may be a sign that your module is not creating any new abstraction and so the module is adding unnecessary complexity. Just use the resource type directly in the calling module instead.
+
+  本リポの設定種別は、いずれも管理リポごとに同じ設定を置くもので、module で包むと単一のリソース型の薄い包装になる（module の名前が中のリソース型と同じになる）。
 - **`for_each` による追従**: 管理リポの増減は `repositories` のエントリの増減として `for_each` が吸収し、module を増やす必要が無い。
 - **再利用先の root が1つ**: 共通部分を切り出しても、使う root は本リポ直下の1つしかない（2つ目の root が生じる事象は §2 の区分 A として扱う）。
 - **Workspace の SoT**: CLAUDE.md §1 は、Workspace `github-config` の Remote 実行を唯一の正としている。
-- **公式スタイルガイドの「Multiple environments」節**: HCP Terraform の利用者には環境ごとに別の Workspace を使うことを勧め、大きなコードベースでは "split your resources across multiple workspaces to prevent large state files and limit unintended consequences from changes" としている。HCP を使わない場合には "use modules to encapsulate your configuration, and use a directory for each environment so that each one has a separate state file" と勧めている（2026-09-26 確認）。HCP を使う本リポでは、環境の分離と規模への対処は Workspace（root）の分割で扱うものであり、child module 化だけでは解決しない。このため §2 は root / Workspace 分割と child module 化を区別する。
+- **公式スタイルガイドの「Multiple environments」節**（<https://developer.hashicorp.com/terraform/language/style#multiple-environments>、2026-09-26 取得）: HCP Terraform の利用者と、HCP を使わない場合とで、次のように勧め方を分けている。
+
+  > For HCP Terraform and Terraform Enterprise users, we recommend that you use separate workspaces for each environment. For larger codebases, we recommend that you split your resources across multiple workspaces to prevent large state files and limit unintended consequences from changes.
+
+  > If you do not use HCP Terraform or Terraform Enterprise, we recommend that you use modules to encapsulate your configuration, and use a directory for each environment so that each one has a separate state file.
+
+  HCP を使う本リポでは、環境の分離と規模への対処は Workspace（root）の分割で扱うものであり、child module 化だけでは解決しない。このため §2 は root / Workspace 分割と child module 化を区別する。
 - **規模**: 付録 A の実測値（`.tf` 4 枚、resource 型 1、管理リポ 4、管理リソース 4）は、§2 のどの条件にも当たらない。
 
 ### 2. 発動条件
@@ -419,7 +447,7 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 
 ### 3. 設定種別と適用表
 
-- **ファイルを設定種別で分ける**: 公式スタイルガイドの「File names」節は、"organize resources and data sources in separate files by logical groups" とし、"it should be immediately clear where a maintainer can find a specific resource or data source definition" を求めている（2026-09-26 確認）。設定種別は論理的なグループにあたり、既存の `branch_protection.tf`、README の手順例、#5 の本文もすでに設定種別の単位になっている。既存ファイルの改名も要らない。
+- **ファイルを設定種別で分ける**: 公式スタイルガイドの「File names」節（<https://developer.hashicorp.com/terraform/language/style#file-names>、2026-09-26 確認）は、"organize resources and data sources in separate files by logical groups" とし、"it should be immediately clear where a maintainer can find a specific resource or data source definition" を求めている。設定種別は論理的なグループにあたり、既存の `branch_protection.tf`、README の手順例、#5 の本文もすでに設定種別の単位になっている。既存ファイルの改名も要らない。
 - **同じ型が複数の設定種別に現れる**: `github_repository_ruleset` は branch 保護とタグ保護の両方に使われ、Actions 権限は2つの型にまたがる。リソース型の単位では関心事の局所性が失われる。
 - **既知の設定種別名を ADR で確定する**: 後続 Issue が名前を個別に決めると揺れる（README の手順例は `repository_labels.tf`、#5 の本文は `labels.tf` だった）。
 - **1:N の集合を例外にする**: `optional(type, default)` の既定値に集合を持たせると、per-repo で指定した時点で集合全体が置き換わり、追加・除外の差分を表せない。#5 の AC（リポ別に追加・除外できる構造）を最小の記述量で満たすため、共通集合と差分で表す。例外は 1:N の集合に限り、スカラー属性には広げない。
@@ -429,7 +457,11 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 - **所有者の方針**: 値を類型ごとの型に収め、差がどこに・なぜあるかを台帳の1か所で読めるようにし、上書きの経路を減らす（コンテキスト）。
 - **置き場所が区分に一対一で決まる**: リポ固有値＝`repositories.<k>.<concern>.*`（visibility と profile は直下）、類型決定値＝`local.<concern>_profile_defaults`、全リポ共通値＝`local.<concern>_preset` の3つに一対一で決まり、子 Issue の作業者も reviewer も規則だけで配置を判定できる。`local.<concern>_profile_defaults` と `local.<concern>_preset` が同じファイル冒頭に並ぶので、設定種別の方針全体をファイル冒頭で読める。既存の `local.branch_protection_preset` はそのまま残せる。
 - **型の検査**: ADR 0001 が `local.*_preset` を採らなかった理由は、`merge()` の戻り値が `map(any)` になって型検査を失うことだった。locals の object を resource から直接参照する形なら、存在しない属性の参照は `terraform validate` が拒否し、値の型は provider のスキーマで検査される。`merge()` を使わないことで、この理由は解消する。
-- **既定値は別のフィールドを参照できない（一次確認）**: 2026-09-26 に、`cloud {}` も provider も含まない使い捨てのディレクトリで、Terraform v1.15.6（`mise exec terraform@1.15.6 -- terraform validate`）を実行した。object 型の variable のフィールドに `optional(bool, self.profile == "infra")`（同じ object の別フィールドへの参照）と `optional(bool, var.other)`（別の変数への参照）を書いた設定は、どちらも `Error: Variables not allowed`（`Variables may not be used here.`）で失敗した。公式ドキュメント「Type constraints」も、既定値の要件として属性の型との互換性を挙げるだけで、別のフィールドの参照については明記していない（2026-09-26 確認）。したがって、類型で変わる値を型の側（`optional()` の既定値）で解決することはできず、類型決定値は表を直接参照し、台帳登録属性の既定値は null フォールバックで解決する。
+- **既定値は別のフィールドを参照できない（一次確認）**: 2026-09-26 に、`cloud {}` も provider も含まない使い捨てのディレクトリで、Terraform v1.15.6（`mise exec terraform@1.15.6 -- terraform validate`）を実行した。object 型の variable のフィールドに `optional(bool, self.profile == "infra")`（同じ object の別フィールドへの参照）と `optional(bool, var.other)`（別の変数への参照）を書いた設定は、どちらも `Error: Variables not allowed`（`Variables may not be used here.`）で失敗した。公式ドキュメント「Type constraints」の optional object type attributes（<https://developer.hashicorp.com/terraform/language/expressions/type-constraints#optional-object-type-attributes>、2026-09-26 取得）は、既定値について次のように述べる。
+
+  > **Default:** (Optional) The second argument defines the default value that Terraform should use if the attribute is not present. This must be compatible with the attribute type. If not specified, Terraform uses a `null` value of the appropriate type as the default.
+
+  既定値の式で同じ object の別のフィールドや別の変数を参照できるかは、この本文には明示が無い。このため、上の validate の実行結果で一次確認した。既定値を省いた `optional(T)` が null を既定値にすることは、この本文による（決定 §4 の実装形）。したがって、類型で変わる値を型の側（`optional()` の既定値）で解決することはできず、類型決定値は表を直接参照し、台帳登録属性の既定値は null フォールバックで解決する。
 - **null だけを未指定とみなす**: 偽値（false、空リスト、0、空文字）を未指定と取り違える合成を防ぐため。ADR 0002 の案 B（`coalesce`）で議論した問題と同じ種類のものである。
 - **取り込み時の食い違いを由来で分ける**: 台帳を恒常的な例外だけに保て、暫定のフィールドを足しては消す手数が要らない。変更の対象は属性1つずつで、承認と記録を Issue に残せば追跡できる。代償として、取り込み前の実値の変更は Terraform の plan を経ないので、plan の差分としてはレビューされない。
 - **台帳の記録を属性単位＋使用リポにする**: 「可能な限り型にはめる」方針に沿い、reviewer が使用リポごとに理由を照合できる。後から緩めやすい。
@@ -439,7 +471,21 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 - **設定種別ごとの入れ子**: Ruleset が branch 用と tag 用の2本になると、`enforcement` などのフィールド名がフラットな構造では衝突する。入れ子にすれば名前の衝突は構造的に起きず、「設定種別名＝ファイル名＝フィールド群のキー」が（`repository` の例外を除いて）一対一で対応し、作業者が規則だけで配置を決められる。現行の `terraform.tfvars` が使っているのは `status_check_contexts` / `status_check_integration_id` だけなので、いま構造を変えても移行コストは小さい。
 - **`preset` を全リポ共通値の用途名にする**: 1:N の共通集合（#5 のラベル）も全リポ共通値として `local.labels_preset` で扱えるので、共通集合のためだけの用途名は要らない。README の `local.<resource>_preset` は、名前の形を `<concern>` に直せばそのまま使える。
 - **用途名を4つに固定する**: 子 Issue の作業者が locals の名前を ADR だけで決められるようにするため。
-- **locals の配置**: 決定 §5 に記した公式スタイルガイドの locals の配置（要旨）に合わせる。現行の `local.branch_protection_preset` も、`branch_protection.tf` の冒頭に置かれている。
+- **locals の配置**: 決定 §5 に引用した公式スタイルガイドの「Local values」節の原文に合わせる。現行の `local.branch_protection_preset` も、`branch_protection.tf` の冒頭に置かれている。
+- **設定種別に属さないファイルの名前**: 公式スタイルガイドの「File names」節（<https://developer.hashicorp.com/terraform/language/style#file-names>、2026-09-26 取得）は、次の命名を勧めている。
+
+  > We recommend the following file naming conventions:
+  >
+  > - A `backend.tf` file that contains your backend configuration. You can define multiple `terraform` blocks in your configuration to separate your backend configuration from your Terraform and provider versioning configuration.
+  > - A `main.tf` file that contains all resource and data source blocks.
+  > - A `outputs.tf` file that contains all output blocks in alphabetical order.
+  > - A `providers.tf` file that contains all `provider` blocks and configuration.
+  > - A `terraform.tf` file that contains a single `terraform` block which defines your `required_version` and `required_providers`.
+  > - A `variables.tf` file that contains all variable blocks in alphabetical order.
+  > - A `locals.tf` file that contains local values. Refer to local values for more information.
+  > - A `override.tf` file that contains override definitions for your configuration. Terraform loads this and all files ending with `_override.tf` last. Use them sparingly and add comments to the original resource definitions, as these overrides make your code harder to reason about. Refer to the override files documentation for more information.
+
+  決定 §5 の設定種別に属さない5つの名前（`terraform.tf` / `providers.tf` / `variables.tf` / `locals.tf` / `outputs.tf`）は、このうちの5つである。`main.tf` に集める代わりに設定種別ファイルへ分け（根拠 §3）、`backend.tf` は置かない（本リポの `cloud {}` ブロックは `terraform.tf` にある。CLAUDE.md §1）。`override.tf` は、設定種別に属さない5つの名前に含めていない。
 
 ### 6. visibility による出し分け
 
@@ -518,7 +564,7 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 
 ### 子 Issue の早見表
 
-module 化の要否は、§2 の事象が起きていないことを前提とする。新しい設定種別を足す Issue（#5・#7・#73・#74）は、着手時に §2 A-1 を確かめる（#73・#74 は、本文の参考欄に Administration write で書き込めることの一次確認が記録されている）。#6 は #16・#17 の親として、この2行を通じて扱う。
+module 化の要否は、§2 の事象が起きていないことを前提とする。新しい設定種別を足す Issue（#5・#7・#73・#74）は、着手時に §2 A-1 を確かめる（#73・#74 は、本文の参考欄に Administration write で書き込めることの一次確認が記録されている）。ラベルの API が App の権限（Administration / Metadata）を超えるかは、#5 で CLAUDE.md §3 に従い確認する。超える場合は、別 Issue で権限を拡張する。#6 は #16・#17 の親として、この2行を通じて扱う。
 
 | Issue | module 化の要否 | ファイル | resource ラベル | フィールドの配置 | locals の名前 | per-repo で変えられる範囲 | 前提となる Issue |
 |---|---|---|---|---|---|---|---|
@@ -528,7 +574,7 @@ module 化の要否は、§2 の事象が起きていないことを前提とす
 | #7 | しない | `repository.tf`（`vulnerability_alerts`、`security_and_analysis` 配下）と `dependabot_security_updates.tf` | `github_repository.this` と `github_repository_dependabot_security_updates.dependabot_security_updates` | `repositories.<k>.repository.*` と `repositories.<k>.dependabot_security_updates.*` の2か所に分かれうる。どちらも、リポ固有値か台帳登録属性があるときだけ置く | `local.repository_preset` / `local.repository_profile_defaults`、`local.dependabot_security_updates_preset` / `local.dependabot_security_updates_profile_defaults`（区分に応じて）。private で使えないリソースは `local.dependabot_security_updates_targets`、`repository.tf` の中の private で使えない属性は visibility を条件にした条件分岐（§6） | リポ固有値と台帳登録属性だけ。private で使えないことによる出し分けは台帳の登録を要しない | #16、#72 |
 | #72 | しない | `variables.tf`、`terraform.tfvars` | なし（resource を足さない） | `repositories.<k>.profile`（直下、必須、値は §7 の4つの識別子に限る） | なし（`local.<concern>_profile_defaults` は各設定種別の Issue が作る） | `profile` 自体はリポごとに宣言する値である | #32。移行 Issue とは直列（前後は問わない） |
 | #73 | しない | `actions_permissions.tf` | `github_actions_repository_permissions.actions_permissions` と `github_workflow_repository_permissions.actions_permissions` | 無い。台帳に登録した属性があるときだけ `repositories.<k>.actions_permissions.*` を置く（候補: PR の作成を許す必要があるリポ） | `local.actions_permissions_profile_defaults`（類型決定値）。全リポ共通値があれば `local.actions_permissions_preset`。visibility の制約が無いので `targets` は置かない | 台帳登録属性だけ | #72。移行 Issue は待たない |
-| #74 | しない | `tag_protection.tf` | `github_repository_ruleset.tag_protection` | 無い（リポ固有値も台帳登録属性も無ければ `repositories.<k>.tag_protection` のキーを設けない） | `local.tag_protection_targets`（public かつ類型で有効なリポ）、`local.tag_protection_profile_defaults`（有効にする類型。値は #74 が決める）、`local.tag_protection_preset`（保護対象の範囲などが全リポ共通値なら） | 台帳登録属性だけ | #72。public での絞り込みは `visibility`（#16 で入る）を参照する。移行 Issue は待たない |
+| #74 | しない | `tag_protection.tf` | `github_repository_ruleset.tag_protection` | 無い（リポ固有値も台帳登録属性も無ければ `repositories.<k>.tag_protection` のキーを設けない） | `local.tag_protection_targets`（public かつ類型で有効なリポ）、`local.tag_protection_profile_defaults`（有効にする類型。値は #74 が決める）、`local.tag_protection_preset`（保護対象の範囲などが全リポ共通値なら） | 台帳登録属性だけ | #72、#16（public での絞り込みに `visibility` を要する。`visibility` は #16 で入る）。移行 Issue は待たない |
 | #71 | しない | `branch_protection.tf` | `github_repository_ruleset.branch_protection` | per-repo のフィールドは無い（外すリポがあれば台帳に登録して `repositories.<k>.branch_protection` に足す） | 類型決定値にするなら `local.branch_protection_profile_defaults`、全リポ共通値のままなら `local.branch_protection_preset` | 台帳登録属性だけ | 移行 Issue、#72 |
 | #4 | しない（別の owner の追加は §2 A-2） | `terraform.tfvars`（リポの追加）、`branch_protection.tf`（Ruleset の適用対象を public に絞る） | 既存のもの（`github_repository_ruleset.branch_protection` など） | 追加するリポに `visibility`、#72 の完了後は `profile`、必須のリポ固有値を宣言する | `local.branch_protection_targets`（public のリポ）を新設する。`tag_protection` があり public で絞られていなければ、`local.tag_protection_targets` も public で絞る | リポ固有値と台帳登録属性だけ | #16（`visibility`） |
 
@@ -542,8 +588,8 @@ J12 の判断（ADR 0001 の本文を書き換える。補注方式は採らな�
 |---|---|---|---|
 | 1 | L5・L7（ステータス） | 改訂済（#63）と改訂範囲 | 「改訂済（2026-09-26、#32）」と #32 の改訂範囲（決定 §1、根拠 §1、影響の3小節と import 節の該当行、ロールバック可能性）を追記し、§2・§3・付録は変更しない旨を書く。本 ADR へのリンクを置く |
 | 2 | L40（決定 §1 の見出し） | `repository.tf` 1ファイル集約 + variable defaults | `repository.tf` 1ファイル集約 + 値の区分に応じた直接参照 |
-| 3 | L48 の直後 | （追加） | #32 の改訂履歴（変えたこと、理由、本 ADR の節）を、#63 の改訂履歴の引用ブロック（L42-48）の後に同じ形で追記する |
-| 4 | L48 | `merge()` パターンから variable defaults への実コード移行は別 Issue | 本 ADR §4 の値の区分への移行は別 Issue |
+| 3 | L48 の直後 | （追加） | #32 の改訂履歴（変えたこと、理由、本 ADR の節）を、#63 の改訂履歴の引用ブロック（L42-48）の後に別の引用ブロックで追記する |
+| 4 | L48 | `merge()` パターンから variable defaults への実コード移行は別 Issue | L48 は #63 の改訂履歴の引用ブロックの中にあるので書き換えない。#3 で追記した #32 の改訂履歴の中で、移行先が本 ADR §4 の値の区分に変わったこと（移行は別 Issue）を述べる |
 | 5 | L51 | preset を `repositories` のフィールド既定値に置く。`local.*_preset` + `merge()` / null sentinel / ternary は採用しない | 置き場所を値の区分で決める（リポ固有値＝`repositories` のフィールド、類型決定値＝`local.<concern>_profile_defaults`、全リポ共通値＝`local.<concern>_preset`）。`merge()` は採用しない。null センチネルと三項演算子は、例外台帳に登録した属性の null フォールバックに限る。visibility による適用可否の条件分岐はこの対象外 |
 | 6 | L52 | `archived = optional(bool, false)` を preset（4リポ共通値）の例とする | リポ固有値と全リポ共通値の例に差し替える（#16 の AC は archived を per-repo の必須宣言としており、書き換え前の例とも食い違っていた） |
 | 7 | L53 | per-repo override は変数値でフィールドを上書きする | per-repo で値を変えられるのは、リポ固有値と台帳登録属性だけ |
@@ -570,7 +616,7 @@ J12 の判断（ADR 0001 の本文を書き換える。補注方式は採らな�
 | 28 | L204 | `visibility`（required）のみの宣言で済む | visibility と profile（ともに必須）と、必須のリポ固有値の宣言で済む |
 | 29 | L208 | ロールバック（1ファイル集約 + variable defaults ↔ 案 B'） | 起点を改訂後の構造に合わせ、#32 の改訂を戻す手順（類型決定値・全リポ共通値を `repositories` のフィールド既定値へ戻す。tfvars と型定義の書き換えだけで、state は変わらない）を1項目足す |
 
-ADR 0001 の §2・§3、根拠 §2〜§4、代替案、リポ名変更と `moved` の節、付録 A・B は変更していない。L27・L115・付録 A の「per-repo override 必須範囲」は #15 の時点の観測の記録であり、L140 は案 B' を退けた理由の記録である。
+ADR 0001 の #63 の改訂履歴（L42-48）、§2・§3、根拠 §2〜§4、代替案、リポ名変更と `moved` の節、付録 A・B は変更していない。L27・L115・付録 A の「per-repo override 必須範囲」は #15 の時点の観測の記録であり、L140 は案 B' を退けた理由の記録である。
 
 ### ADR 0005 との関係
 
