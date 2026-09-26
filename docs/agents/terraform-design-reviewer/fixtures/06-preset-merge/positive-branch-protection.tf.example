@@ -1,6 +1,7 @@
-# Fixture (positive, B: 三項演算子パターン): null フォールバック欠落。
-# branch_protection.tf:39-63 の branch_protection パターンに違反。
-# 期待: 観点 6 が blocker で発火（B）。
+# Fixture (positive, branch_protection): 未指定の per-repo 値が全リポ共通値を null で上書きする。
+# per-repo の上書き（enforcement / required_approving_review_count）を例外台帳への登録なしに足し、
+# しかも null フォールバックを欠く。
+# 期待: 観点 6 が blocker で発火。
 
 locals {
   branch_protection = {
@@ -9,8 +10,6 @@ locals {
       target      = local.branch_protection_preset.target
 
       # NOTE: フォールバックが無い。ovr.enforcement が null なら null 上書きしてしまう。
-      # 既存 branch_protection.tf:43 のパターンに従い以下に修正すべき:
-      #   enforcement = ovr.enforcement != null ? ovr.enforcement : local.branch_protection_preset.enforcement
       enforcement = ovr.enforcement
 
       # 同上、要修正

@@ -1,0 +1,31 @@
+# Fixture (ADR 0004 / 取り込み時の食い違い): 既存リポ sample-lib を管理対象に取り込む PR。
+# sample-lib は GitHub 上に既にあり、main 保護の Ruleset も既にある。
+# 取り込み前に GitHub 側の実値を調べ、repository / branch protection の全属性が全リポ共通値と一致していることを確認した。
+# plan: 2 to import, 0 to add, 0 to change, 0 to destroy.
+# 下記以外の既存ファイルは main のまま。
+
+# --- import.tf（PR で一時的に追加。取り込み後に削除する） ---
+import {
+  to = github_repository.this["sample-lib"]
+  id = "sample-lib"
+}
+
+import {
+  to = github_repository_ruleset.branch_protection["sample-lib"]
+  id = "sample-lib:23456789"
+}
+
+# --- terraform.tfvars（PR 後、追加エントリ） ---
+  # profile = distribution: 利用者が ref で参照するライブラリ。
+  "sample-lib" = {
+    visibility = "public"
+    profile    = "distribution"
+
+    repository = {
+      description = "Sample library"
+    }
+    branch_protection = {
+      status_check_contexts       = ["build"]
+      status_check_integration_id = 15368 # GitHub Actions
+    }
+  }

@@ -1,11 +1,35 @@
-# Fixture (negative): 15368 を terraform.tfvars 経由で参照。
-# 既存 branch_protection.tf の required_check と同様のパターン。
-# 期待: 観点 5 は発火しない。
-#
-# PR の内容: branch_protection.tf の Ruleset を現行の形で定義する
-# （locals の branch_protection_preset と variables.tf / terraform.tfvars は main のまま）。
+# Fixture (negative, branch_protection): 現行 branch_protection.tf と同じ構造での属性追加。
+# PR の内容: 全リポ共通値に required_linear_history を足し、resource から直接参照する。
+# 全管理リポの実値は既に true であり、PR の plan は No changes（取り込み時の食い違いなし）。
+# 期待: 観点 6 は発火しない。
 
-# --- branch_protection.tf（PR 後、resource） ---
+# --- branch_protection.tf（PR 後） ---
+locals {
+  branch_protection_preset = {
+    name        = "main protection"
+    target      = "branch"
+    enforcement = "active"
+
+    creation            = true
+    deletion            = true
+    non_fast_forward    = true
+    required_signatures = true
+
+    # PR で追加: 全リポで揃える値。
+    required_linear_history = true
+
+    required_approving_review_count   = 0
+    dismiss_stale_reviews_on_push     = true
+    require_code_owner_review         = false
+    require_last_push_approval        = false
+    required_review_thread_resolution = true
+    allowed_merge_methods             = ["squash"]
+
+    strict_required_status_checks_policy = true
+    do_not_enforce_on_create             = false
+  }
+}
+
 resource "github_repository_ruleset" "branch_protection" {
   for_each = var.repositories
 
@@ -22,10 +46,11 @@ resource "github_repository_ruleset" "branch_protection" {
   }
 
   rules {
-    creation            = local.branch_protection_preset.creation
-    deletion            = local.branch_protection_preset.deletion
-    non_fast_forward    = local.branch_protection_preset.non_fast_forward
-    required_signatures = local.branch_protection_preset.required_signatures
+    creation                = local.branch_protection_preset.creation
+    deletion                = local.branch_protection_preset.deletion
+    non_fast_forward        = local.branch_protection_preset.non_fast_forward
+    required_signatures     = local.branch_protection_preset.required_signatures
+    required_linear_history = local.branch_protection_preset.required_linear_history
 
     pull_request {
       required_approving_review_count   = local.branch_protection_preset.required_approving_review_count
@@ -36,7 +61,7 @@ resource "github_repository_ruleset" "branch_protection" {
       allowed_merge_methods             = local.branch_protection_preset.allowed_merge_methods
     }
 
-    # Only emit a required_status_checks rule when the repo declares CI contexts.
+    # リポ固有値（status check のコンテキストと integration ID）は repositories.<k>.branch_protection から。
     dynamic "required_status_checks" {
       for_each = length(each.value.branch_protection.status_check_contexts) > 0 ? [1] : []
       content {
@@ -44,7 +69,6 @@ resource "github_repository_ruleset" "branch_protection" {
           for_each = each.value.branch_protection.status_check_contexts
           content {
             context        = required_check.value
-            # terraform.tfvars 経由で注入された値を属性参照。
             integration_id = each.value.branch_protection.status_check_integration_id
           }
         }

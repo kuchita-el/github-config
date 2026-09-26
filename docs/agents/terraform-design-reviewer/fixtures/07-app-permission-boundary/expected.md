@@ -1,12 +1,12 @@
 # 観点 7（App 権限境界違反検出）の期待出力
 
-参照: `README.md:9, 76-77`（App スコープ Administration RW + Metadata R）／ memory `app-auth-least-privilege-policy.md`
+参照: `CLAUDE.md` §3・`README.md`「設計思想」節（App に付与済みの権限。評価時に reviewer が読んで確定する。現時点は Administration RW + Metadata R）
 
 ## 陽性ケース 1 (`positive-secret.tf.example`)
 
 - **観点 #**: 7
 - **重大度**: blocker
-- **対象**: `github_actions_secret.deploy_token`
+- **対象**: `github_actions_secret.actions_secrets`
 - **指摘文言の主旨**: `github_actions_secret` は本リポの App 権限境界外（必要権限: Actions: Secrets RW）。本リポは Administration RW + Metadata R のみを許可している。本 PR からは本リソースを削除するか、App 権限拡張を別 Issue で提案する。
 
 ## 陽性ケース 2 (`positive-file.tf.example`)
@@ -25,5 +25,4 @@
 
 reviewer 定義の resource 型 × 必要 App 権限の静的テーブルは以下を一次情報とする:
 
-- `integrations/github` provider 公式ドキュメント（各 resource ページ末尾 "GitHub API Token Scopes" 節）
-- GitHub Apps permissions reference: <https://docs.github.com/en/rest/overview/permissions-required-for-github-apps>
+reviewer 定義 §観点 7 の「テーブル導出元」を参照（provider 公式ドキュメント・provider ソース・GitHub Apps permissions reference・REST API ドキュメント）。

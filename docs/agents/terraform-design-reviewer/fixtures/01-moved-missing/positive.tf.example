@@ -2,19 +2,24 @@
 # 元: branch_protection.tf の resource "github_repository_ruleset" "branch_protection"
 # 期待: 観点 1 が blocker で発火。
 #
-# 差分イメージ（before → after の after 状態）:
-#   for_each = local.branch_protection            (削除)
-#   for_each = local.branch_protection_v2_keyed   (追加。キースキーマが変わる想定)
+# 差分イメージ（before → after）:
+#   before: for_each = { for repo, cfg in var.repositories : "${var.github_owner}/${repo}" => cfg }
+#           （キーは "<owner>/<repo>"。過去の実装が owner 付きのキーで展開していた想定）
+#   after:  for_each = var.repositories
+#           （キーはリポ名。ADR 0004 §3 の基本パターンへ揃える）
+#   repository = split("/", each.key)[1]  →  repository = each.key
+# state 上の既存インスタンスのアドレスは ["kuchita-el/<repo>"]。
+# 下記以外の既存ファイル（locals の branch_protection_preset、variables.tf / terraform.tfvars）は main のまま。
 
+# --- branch_protection.tf（PR 後、resource） ---
 resource "github_repository_ruleset" "branch_protection" {
-  # キースキーマがリポ名から「リポ名:default-branch」形式に変わった想定。
-  # ADR 0001 もしくは別 issue でこの変更が決まったが、moved ブロックがない。
-  for_each = local.branch_protection_v2_keyed
+  # キースキーマが「owner/リポ名」からリポ名に変わった。
+  for_each = var.repositories
 
-  name        = each.value.name
-  repository  = each.value.repository
-  target      = each.value.target
-  enforcement = each.value.enforcement
+  name        = local.branch_protection_preset.name
+  repository  = each.key
+  target      = local.branch_protection_preset.target
+  enforcement = local.branch_protection_preset.enforcement
 
   conditions {
     ref_name {
@@ -24,13 +29,14 @@ resource "github_repository_ruleset" "branch_protection" {
   }
 
   rules {
-    creation = each.value.creation
+    creation = local.branch_protection_preset.creation
+    # ...（main と同じ rules は省略）...
   }
 }
 
 # NOTE: 同一 PR 内に対応する moved ブロックが無い。
 # 例えば次のような moved {} を追加すべき:
 #   moved {
-#     from = github_repository_ruleset.branch_protection["gachanuma"]
-#     to   = github_repository_ruleset.branch_protection["gachanuma:main"]
+#     from = github_repository_ruleset.branch_protection["kuchita-el/gachanuma"]
+#     to   = github_repository_ruleset.branch_protection["gachanuma"]
 #   }

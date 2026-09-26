@@ -1,12 +1,8 @@
-# Fixture (negative): github_repository_ruleset を追加。
-# 既存 branch_protection.tf と同じリソース型で、Administration RW で動作する。
-# 期待: 観点 7 は発火しない。
-#
-# PR の内容: タグ保護を管理対象に加える。
+# Fixture (ADR 0004 / 設定種別の追加): タグ保護を管理対象に加える PR。
 # 下記以外の既存ファイル（repository.tf / branch_protection.tf / variables.tf / terraform.tfvars）は main のまま。
 # 管理リポに既存のタグ用 Ruleset は無く、plan は public リポの分の create のみ。
 
-# --- tag_protection.tf（PR で新規追加） ---
+# --- ruleset_tags.tf（PR で新規追加） ---
 locals {
   # tag protection を適用するリポ。GitHub Free では private リポで Ruleset を使えないため public に絞る。
   tag_protection_targets = {
@@ -33,7 +29,7 @@ locals {
   }
 }
 
-resource "github_repository_ruleset" "tag_protection" {
+resource "github_repository_ruleset" "tags" {
   for_each = local.tag_protection_targets
 
   name        = local.tag_protection_preset.name

@@ -1,8 +1,4 @@
-# Fixture (negative): github_repository_ruleset を追加。
-# 既存 branch_protection.tf と同じリソース型で、Administration RW で動作する。
-# 期待: 観点 7 は発火しない。
-#
-# PR の内容: タグ保護を管理対象に加える。
+# Fixture (ADR 0004 / 設定種別の追加): タグ保護を管理対象に加える PR。
 # 下記以外の既存ファイル（repository.tf / branch_protection.tf / variables.tf / terraform.tfvars）は main のまま。
 # 管理リポに既存のタグ用 Ruleset は無く、plan は public リポの分の create のみ。
 

@@ -1,16 +1,27 @@
 # Fixture (negative): ADR 0001 §3 通りの lifecycle.ignore_changes を持つ。
 # 期待: 観点 3 は発火しない。
+#
+# PR の内容: github_repository.this を現行 repository.tf の形で定義する（locals の repository_preset と
+# variables.tf / terraform.tfvars は main のまま）。
 
+# --- repository.tf（PR 後、resource） ---
 resource "github_repository" "this" {
   for_each = var.repositories
 
-  name        = each.key
-  visibility  = each.value.visibility
-  description = each.value.description
+  name       = each.key
+  visibility = each.value.visibility
 
-  has_issues   = true
-  has_wiki     = each.value.has_wiki
-  has_projects = true
+  # リポ固有値。
+  archived    = each.value.repository.archived
+  description = each.value.repository.description
+
+  # 全リポ共通値。
+  allow_auto_merge       = local.repository_preset.allow_auto_merge
+  has_wiki               = local.repository_preset.has_wiki
+  has_projects           = local.repository_preset.has_projects
+  has_discussions        = local.repository_preset.has_discussions
+  has_issues             = local.repository_preset.has_issues
+  delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
 
   lifecycle {
     # ADR 0001 §3 で確定された保護対象。
