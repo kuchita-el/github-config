@@ -42,6 +42,25 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 ---
 
+## 変数
+
+`variables.tf` の `description` を `terraform-docs` で自動反映する（`.claude/skills/tf-docs`）。手動転記しない。
+
+<!-- BEGIN_TF_DOCS -->
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | GitHub account (owner) that the managed repositories belong to (e.g. your username). | `string` | n/a | yes |
+| <a name="input_repositories"></a> [repositories](#input\_repositories) | Repositories under management, keyed by repository name.<br/><br/>Each entry overrides the branch-protection preset defined in branch\_protection.tf.<br/>Leave an attribute unset to inherit the preset value. The only commonly<br/>repo-specific values are the required status check contexts (CI job names),<br/>which differ per repository, so they live here rather than in the preset. | <pre>map(object({<br/>    # Required status check contexts (CI job names) for this repo. Empty list = no<br/>    # required_status_checks rule for this repo.<br/>    status_check_contexts = optional(list(string), [])<br/>    # GitHub App ID that produces the checks above (15368 = GitHub Actions).<br/>    # Required when status_check_contexts is non-empty.<br/>    status_check_integration_id = optional(number)<br/><br/>    # Optional per-repo overrides of the preset (null = inherit preset value).<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/>  }))</pre> | n/a | yes |
+
+## Outputs
+
+No outputs.
+<!-- END_TF_DOCS -->
+
+---
+
 ## 初期セットアップ（HCP 未経験者向け）
 
 > 一度だけ実施。以降の運用は「運用フロー」へ。
