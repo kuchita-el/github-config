@@ -1,5 +1,5 @@
 # Fixture (positive): GitHub Actions App ID（15368）を resource 内に直書き。
-# terraform.tfvars:11/27 で参照されているハードコード値が resource 内に侵入。
+# terraform.tfvars の status_check_integration_id で宣言している値が resource 内に侵入。
 # 期待: 観点 5 が suggestion で発火。
 
 resource "github_repository_ruleset" "branch_protection_gachanuma" {

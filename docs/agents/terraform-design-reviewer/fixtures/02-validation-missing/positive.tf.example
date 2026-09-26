@@ -1,5 +1,5 @@
 # Fixture (positive): variables.tf に validation を伴わない optional フィールド追加。
-# 元: variables.tf:6 の variable "repositories"
+# 元: variables.tf の variable "repositories"
 # 期待: 観点 2 が warning で発火。
 
 variable "repositories" {

@@ -1,5 +1,5 @@
 # Fixture (negative): for_each = local.branch_protection。
-# 既存 branch_protection.tf:4-5 のパターン。
+# 既存 branch_protection.tf と同じく、リポ名をキーに展開するパターン。
 # 期待: 観点 4 は発火しない。
 
 resource "github_repository_ruleset" "branch_protection" {

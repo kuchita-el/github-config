@@ -9,16 +9,18 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 
 ## 観点サマリ
 
-| # | 観点 | 重大度 | 検出条件の要旨 | 参照一次情報 |
+各観点は「守る不変条件」を判定の軸とし、その時点の正しい書き方は reviewer が判定の都度「参照一次情報」を読んで確かめる（Issue [#79](https://github.com/kuchita-el/github-config/issues/79)）。ADR や実コードの書き方が変わっても、reviewer 定義を書き換えずに判定が追従することを狙う。このため下表と reviewer 定義には、行番号付きの参照や ADR の規約の書き写しを置かない。
+
+| # | 観点 | 重大度 | 守る不変条件の要旨 | 参照一次情報 |
 |---|---|---|---|---|
-| 1 | `moved` ブロック不在 | blocker | リソース名・`for_each` キー変更時に対応 `moved` ブロックが無い | Terraform 公式 [Refactoring](https://developer.hashicorp.com/terraform/language/modules/develop/refactoring) / [ADR 0001](../../adr/0001-repository-resource-structure.md) §影響「リポジトリ名変更時の destroy リスクと `moved` ブロックによる回避」 |
-| 2 | `variable` の `validation` 不足 | warning | 列挙・範囲・相互排他等の不変条件がある型に `validation` が無い | [`variables.tf`](../../../variables.tf) L38-44 |
-| 3 | `lifecycle.ignore_changes` 網羅性 | blocker | `github_repository` に `visibility`/`archived` の `ignore_changes` が無い | [ADR 0001](../../adr/0001-repository-resource-structure.md) §3 |
-| 4 | `for_each` vs `count` | warning | 固有キーを持つ要素が `count = N`（N≥2）で生成。`count = 1` は許容 | [`branch_protection.tf`](../../../branch_protection.tf) L69-115 |
-| 5 | ハードコード値の抽出 | suggestion | Terraform 固有のリテラル定数・環境依存値が resource 内に直書き | [`terraform.tfvars`](../../../terraform.tfvars) L11/L27 |
-| 6 | preset 上書き経路の一貫性 | blocker | `github_repository` 属性が variable defaults（`optional(type, default)` + 直接参照）から逸脱、または `ovr.X != null ? ovr.X : base.X` から逸脱 | [ADR 0001](../../adr/0001-repository-resource-structure.md) §1 / [`branch_protection.tf`](../../../branch_protection.tf) L39-63 |
-| 7 | App 権限境界違反 | blocker | App スコープ（Administration RW + Metadata R）の範囲外 resource 追加 | [`README.md`](../../../README.md) §設計思想, §初期セットアップ §3 |
-| 8 | plan-time リスク | warning / blocker | HCP plan 出力に destroy/replace 兆候。`import.tf` 連携時は blocker | reviewer 定義 §観点 8 |
+| 1 | `moved` ブロック不在 | blocker | 既存リソースがアドレスの付け替えだけで破棄・再作成されない | Terraform 公式 [Refactoring](https://developer.hashicorp.com/terraform/language/modules/develop/refactoring) / [ADR 0001](../../adr/0001-repository-resource-structure.md) §影響「リポジトリ名変更時の destroy リスクと `moved` ブロックによる回避」 |
+| 2 | `variable` の `validation` 不足 | warning | 入力値の暗黙の制約に反する入力が plan 前に拒否される | [`variables.tf`](../../../variables.tf) の `repositories` 変数の `validation` 群 |
+| 3 | `lifecycle.ignore_changes` 網羅性 | blocker | 上書きの復旧コストが大きい属性が、GitHub 側の変更を巻き戻さない保護の下にある | [ADR 0001](../../adr/0001-repository-resource-structure.md) §3 / [`repository.tf`](../../../repository.tf) の `github_repository.this` |
+| 4 | `for_each` vs `count` | warning | 固有の識別子を持つ要素のインスタンスが識別子で追跡される。`count = 1` は許容 | [`branch_protection.tf`](../../../branch_protection.tf) の `github_repository_ruleset.branch_protection` |
+| 5 | ハードコード値の抽出 | suggestion | Terraform 固有の定数の宣言場所が定まり、resource 本体に散らばらない | [`terraform.tfvars`](../../../terraform.tfvars) の `status_check_integration_id` |
+| 6 | preset 上書き経路の一貫性 | blocker | 未指定が揃えた値を消さない、揃えた値の正の置き場所が一つ、per-repo の逸脱は ADR が認めた経路だけ、必須の宣言を省略できない、構造は現行の構造方針 ADR に従う | [ADR 0004](../../adr/0004-terraform-module-structure-policy.md) 決定 §3〜§7（各 ADR のステータス節で置き換え関係を確認）/ [`/README.md`](../../../README.md)「例外台帳」節 / [`repository.tf`](../../../repository.tf)・[`branch_protection.tf`](../../../branch_protection.tf) |
+| 7 | App 権限境界違反 | blocker | Terraform が要する API 権限が App に付与済みの権限に収まる | [`/CLAUDE.md`](../../../CLAUDE.md) §3 / [`README.md`](../../../README.md)「設計思想」節・「GitHub App の作成・インストール・秘密鍵の生成」節 |
+| 8 | plan-time リスク | warning / blocker | 意図しない破棄・再作成を伴って適用されない。`import.tf` 連携時は blocker | [`/CLAUDE.md`](../../../CLAUDE.md) §2 / [`README.md`](../../../README.md)「既存リポの取り込み（import）」節 |
 
 ## 起動例
 
@@ -85,12 +87,12 @@ reviewer 動作確認用フィクスチャを `fixtures/` 配下に観点ごと�
 | 3 | `fixtures/03-lifecycle-coverage/` | `github_repository` の `lifecycle.ignore_changes` 網羅性 |
 | 4 | `fixtures/04-for-each-vs-count/` | `for_each` vs `count`（境界 `count = 1` 含む） |
 | 5 | `fixtures/05-hardcoded-values/` | `15368` 直書き vs `terraform.tfvars` 経由参照 |
-| 6 | `fixtures/06-preset-merge/` | variable defaults パターン (A) と三項演算子パターン (B) の陽性/陰性 |
+| 6 | `fixtures/06-preset-merge/` | `repository` / `branch_protection` の陽性・陰性（陰性は現行コードの形）と、ADR 0004 §3〜§7 の規約領域ごとの違反・準拠 |
 | 7 | `fixtures/07-app-permission-boundary/` | `github_actions_secret` / `github_repository_file` / `github_repository_ruleset` |
 | 8 | `fixtures/08-plan-time-risk/` | plan テキスト 4 種（destroy/replace/no-change/未提供） |
 
 各ディレクトリの `expected.md` に期待出力（観点 # / 重大度 / 指摘文言の主旨）を記録。
-検証結果の照合表は [`verification.md`](verification.md) を参照（全 22 ケース PASS）。
+検証結果の照合表は [`verification.md`](verification.md) を参照。
 
 フィクスチャ拡張子は `.tf.example`（観点 8 のみ `.txt`）で、`terraform validate` の評価対象外。さらに `/.terraformignore` で `docs/agents/` 全体を HCP リモート実行のアップロード対象から除外している。
 
@@ -110,8 +112,10 @@ provider バージョン更新時はテーブルの見直し起点として上�
 - 配置先: `.claude/agents/` プロジェクトローカル（Issue #20 の確定事項。プラグイン化への移行余地は残す）
 - 起動経路: `.tf` 差分検出時に手動 `Agent` 起動（自動 hook 化は将来検討）
 - AC5 重複抑止: 観点定義の相互排他 + 運用ルール（同主旨指摘は片方採用）
+- 観点を不変条件で書き、実現形は実行時に ADR・実コードを読ませる（#79）。ADR 0004 の規約を観点定義へ書き写す案は、ADR を改訂するたびに観点定義の改訂が要る状態を再生産するため採らなかった
 
 ## 関連ドキュメント
 
-- ADR 0001（観点 3 / 6 の一次情報）: [`docs/adr/0001-repository-resource-structure.md`](../../adr/0001-repository-resource-structure.md)
+- ADR 0001（観点 1 / 3 / 6 の一次情報）: [`docs/adr/0001-repository-resource-structure.md`](../../adr/0001-repository-resource-structure.md)
+- ADR 0004（観点 6 の一次情報）: [`docs/adr/0004-terraform-module-structure-policy.md`](../../adr/0004-terraform-module-structure-policy.md)
 - リポジトリ運用フロー: [`/README.md`](../../../README.md)

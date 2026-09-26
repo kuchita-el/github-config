@@ -1,5 +1,5 @@
 # Fixture (negative): 15368 を terraform.tfvars 経由で参照。
-# 既存 branch_protection.tf:42 と同様のパターン。
+# 既存 branch_protection.tf の required_check と同様のパターン。
 # 期待: 観点 5 は発火しない。
 
 resource "github_repository_ruleset" "branch_protection" {

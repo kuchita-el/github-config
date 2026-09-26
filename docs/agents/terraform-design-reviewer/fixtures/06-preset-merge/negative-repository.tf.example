@@ -1,0 +1,61 @@
+# Fixture (negative, repository): 現行 repository.tf / variables.tf と同じ構造での属性追加。
+# PR の内容: 全リポ共通値に allow_update_branch を足し、resource から直接参照する。
+# 全管理リポの実値は既に true であり、PR の plan は No changes（取り込み時の食い違いなし）。
+# 期待: 観点 6 は発火しない。
+
+# --- repository.tf（PR 後） ---
+locals {
+  repository_preset = {
+    allow_auto_merge       = false
+    has_wiki               = false
+    has_projects           = true
+    has_discussions        = false
+    has_issues             = true
+    delete_branch_on_merge = true
+
+    # PR で追加: 全リポで揃える値。
+    allow_update_branch = true
+  }
+}
+
+resource "github_repository" "this" {
+  for_each = var.repositories
+
+  name       = each.key
+  visibility = each.value.visibility
+
+  # リポ固有値。
+  archived    = each.value.repository.archived
+  description = each.value.repository.description
+
+  # 全リポ共通値。
+  allow_auto_merge       = local.repository_preset.allow_auto_merge
+  has_wiki               = local.repository_preset.has_wiki
+  has_projects           = local.repository_preset.has_projects
+  has_discussions        = local.repository_preset.has_discussions
+  has_issues             = local.repository_preset.has_issues
+  delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
+  allow_update_branch    = local.repository_preset.allow_update_branch
+
+  lifecycle {
+    ignore_changes = [visibility, archived]
+  }
+}
+
+# --- variables.tf（PR 後。repositories の型は変更なし） ---
+variable "repositories" {
+  type = map(object({
+    visibility = string
+    profile    = string
+
+    repository = optional(object({
+      archived    = optional(bool)
+      description = optional(string)
+    }), {})
+
+    branch_protection = optional(object({
+      status_check_contexts       = optional(list(string), [])
+      status_check_integration_id = optional(number)
+    }), {})
+  }))
+}
