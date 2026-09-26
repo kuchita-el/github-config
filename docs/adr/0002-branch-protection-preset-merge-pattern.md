@@ -5,6 +5,8 @@
 **Superseded by [ADR 0001 改訂](0001-repository-resource-structure.md)（[#63](https://github.com/kuchita-el/github-config/issues/63)、2026-06-21）**
 
 > 注: `branch_protection.tf` の実コードは移行 Issue 完了まで本 ADR の `merge()` + null除去パターンを使用中。新規属性追加・改修時は引き続き本 ADR の決定に従うこと。
+>
+> 追記（[#84](https://github.com/kuchita-el/github-config/issues/84)）: 移行は完了した。`branch_protection.tf` は `merge()` を使わず、[ADR 0004](0004-terraform-module-structure-policy.md) §4・§5 の値の区分（全リポ共通値 `local.branch_protection_preset`、リポ固有値 `repositories.<k>.branch_protection.*`）から直接参照する形へ移った。上の注の「引き続き本 ADR の決定に従うこと」は効力を失い、新規属性追加・改修は ADR 0004 に従う。
 
 初版は同日 2026-06-21 承認済。承認直後に ADR 0001 改訂（#63）で `repositories` 変数全体を `optional(type, default)` による variable defaults パターンへ統一する方針が確定し、`branch_protection` も同方針の適用対象に含まれることが明示された。これに伴い本 ADR の「`merge()` + null除去パターンへ統一」決定は上位解（variable defaults）に置き換えられ、superseded となる。
 

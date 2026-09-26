@@ -7,16 +7,18 @@ variable "repositories" {
   description = <<-EOT
     管理対象リポジトリ。キーはリポジトリ名。
 
-    各エントリは branch_protection.tf で定義したブランチ保護プリセットを上書きする。
-    属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は
-    必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、
-    そのためプリセットではなくここに置く。
+    各エントリにはリポ固有値だけを書く（ADR 0004 §4・§5）。直下には visibility と
+    profile（いずれも必須、既定値なし）だけを置き、それ以外のリポ固有値は設定種別名の
+    キー（repository / branch_protection）の下に入れ子にする。設定種別のキーは、その
+    設定種別にリポ固有値があるリポだけが書き、省略すると値の無い状態（null / 空リスト）になる。
 
-    github_repository の属性（visibility を除く）は optional の default をプリセット値とし、
-    差分のあるリポジトリだけが値を指定する（ADR 0001 §1）。visibility は全リポジトリで必須。
+    全リポ共通値は各設定種別ファイル冒頭の local.<concern>_preset
+    （repository.tf の repository_preset、branch_protection.tf の branch_protection_preset）に置き、
+    ここでは変えられない。特定のリポで全リポ共通値から外すには、README の「例外台帳」への
+    登録を要する。
 
-    profile（類型プロファイル、ADR 0004 §7）も全リポジトリで必須。類型ごとの設定既定値を
-    参照する resource は未実装で、現時点では宣言と検証のみ行う。
+    profile（類型プロファイル、ADR 0004 §7）の類型ごとの設定既定値を参照する resource は
+    未実装で、現時点では宣言と検証のみ行う。
   EOT
 
   type = map(object({
@@ -27,48 +29,29 @@ variable "repositories" {
 
     # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。
     # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。
-    # 類型ごとの設定既定値（local.<concern>_profile_defaults）を消費する resource は本 Issue では
-    # まだ無く、ここでは宣言と検証だけを行う。
+    # 類型ごとの設定既定値（local.<concern>_profile_defaults）を消費する resource はまだ無く、
+    # ここでは宣言と検証だけを行う。
     profile = string
 
-    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。
-    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。
-    status_check_contexts = optional(list(string), [])
-    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。
-    # status_check_contexts が空でない場合は必須。
-    status_check_integration_id = optional(number)
+    # github_repository（repository.tf）のリポ固有値。値を持たないリポは省略できる。
+    repository = optional(object({
+      # アーカイブ済みか。null は未アーカイブ（provider の既定値 false）として扱われる。
+      # lifecycle.ignore_changes の対象で、drift は plan に出ない。
+      archived = optional(bool)
+      # リポジトリの説明文。null は説明文なし。
+      description = optional(string)
+    }), {})
 
-    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。
-    enforcement                          = optional(string)
-    required_approving_review_count      = optional(number)
-    dismiss_stale_reviews_on_push        = optional(bool)
-    require_code_owner_review            = optional(bool)
-    require_last_push_approval           = optional(bool)
-    required_review_thread_resolution    = optional(bool)
-    allowed_merge_methods                = optional(list(string))
-    strict_required_status_checks_policy = optional(bool)
-    do_not_enforce_on_create             = optional(bool)
-
-    # github_repository のセキュリティ系属性（ADR 0001 §1 / Issue #16）。
-    # default がプリセット値（管理対象4リポの共通値、ADR 0001 付録 A）で、リポジトリ単位で上書きできる。
-    # 書き込み可能な状態を既定とする。lifecycle.ignore_changes で drift から保護する。
-    archived = optional(bool, false)
-    # 条件を満たした PR が人のレビューを経ずにマージされる経路を既定で閉じる。
-    allow_auto_merge = optional(bool, false)
-    # wiki / projects / discussions は外部からの書き込み面を広げるため、実態に合わせつつ既定で絞る。
-    has_wiki        = optional(bool, false)
-    has_projects    = optional(bool, true)
-    has_discussions = optional(bool, false)
-
-    # github_repository の開発プロセス系属性のうち、#16 に前倒しするもの（ADR 0001 §影響 #16）。
-    # provider はこれらを宣言しないと空値（false / null）へ変更する plan を出すため、import を no-op に
-    # するには #16 の時点で実態値の宣言が要る。has_issues の default は ADR 0001 §影響 #17 の preset 値。
-    # delete_branch_on_merge の default は true（全リポ共通）。ADR 0001 §影響 #17 の preset 値は false
-    # だったが、値統一 PR でユーザー判断により claude-shared-skills の実値 true へ全リポを揃えた。
-    has_issues             = optional(bool, true)
-    delete_branch_on_merge = optional(bool, true)
-    # preset 値が null のため default を省略する（null = 説明文なし）。
-    description = optional(string)
+    # github_repository_ruleset.branch_protection（branch_protection.tf）のリポ固有値。
+    # 値を持たないリポは省略できる。
+    branch_protection = optional(object({
+      # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。
+      # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。
+      status_check_contexts = optional(list(string), [])
+      # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。
+      # status_check_contexts が空でない場合は必須。
+      status_check_integration_id = optional(number)
+    }), {})
   }))
 
   # Enforce: if a repo declares status check contexts, it must also declare the
@@ -76,9 +59,9 @@ variable "repositories" {
   validation {
     condition = alltrue([
       for r in values(var.repositories) :
-      length(r.status_check_contexts) == 0 || r.status_check_integration_id != null
+      length(r.branch_protection.status_check_contexts) == 0 || r.branch_protection.status_check_integration_id != null
     ])
-    error_message = "status_check_integration_id is required when status_check_contexts is non-empty."
+    error_message = "branch_protection.status_check_integration_id is required when branch_protection.status_check_contexts is non-empty."
   }
 
   # profile は ADR 0004 §7 が定める4つの識別子以外を拒否する。
