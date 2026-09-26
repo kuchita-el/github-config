@@ -258,12 +258,12 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 
 - **ファイル名**: 設定種別ファイルの名前は `<concern>.tf` とする（`<concern>` は設定種別名）。設定種別に属さない root 直下のファイルは、`terraform.tf` / `providers.tf` / `variables.tf` / `locals.tf` / `outputs.tf` とする。既存の `branch_protection.tf`（設定種別ファイル）と `providers.tf` / `terraform.tf` / `variables.tf`（設定種別に属さないファイル）は、この規則に適合する。
 - **設定種別名**: GitHub 上の機能名を snake_case にしたものとし、`github_` や `repository_` の接頭辞は付けない（全設定種別がリポ単位なので冗長になる）。ただし `github_repository` 自体の設定種別は `repository` とする。既知の設定種別名は §3 の適用表の6つ（`branch_protection` / `tag_protection` / `repository` / `labels` / `dependabot_security_updates` / `actions_permissions`）で確定する。
-- **設定種別名の語形（単数・複数）**: 名前が provider のリソース型名に由来する場合は、その型名の単数・複数に従う。1つのリソース型を複数の関心事で使う場合（`github_repository_ruleset`）は、`<対象>_protection` とする。既知の6つへの当てはめは次のとおりである。
+- **設定種別名の語形（単数・複数）**: 1リポに N 個の要素を持つ設定種別（1:N の集合）は、リソース型の選び方によらず複数形とする。それ以外で名前が provider のリソース型名に由来する場合は、その型名の単数・複数に従う。1つのリソース型を複数の関心事で使う場合（`github_repository_ruleset`）は、`<対象>_protection` とする。既知の6つへの当てはめは次のとおりである。
   - `branch_protection` / `tag_protection`: `github_repository_ruleset` を branch と tag の2つの関心事で使うので、`<対象>_protection`。
   - `repository`: `github_repository` の単数形。
   - `dependabot_security_updates`: `github_repository_dependabot_security_updates` の複数形。
   - `actions_permissions`: `github_actions_repository_permissions` / `github_workflow_repository_permissions` の複数形（permissions）。
-  - `labels`: 集約型の `github_issue_labels` の複数形に合う。#5 が要素単位の `github_issue_label`（単数形）を選んだ場合は型名の語形と合わないが、既知の6つは適用表で確定しており、名前は変えない。
+  - `labels`: 1:N の集合なので複数形。#5 が要素単位の `github_issue_label` と集約型の `github_issue_labels` のどちらを選んでも、名前は変わらない。
 - **resource ラベル**: 設定種別名とする（既存の `github_repository_ruleset.branch_protection` と同じ形）。1つの設定種別が2つのリソース型を使う場合も、それぞれ設定種別名とする（例: `github_actions_repository_permissions.actions_permissions` と `github_workflow_repository_permissions.actions_permissions`）。ADR 0001 が決めた `github_repository.this` はそのまま残す。
 - **`repositories` のフィールド構造**:
   - `repositories.<k>` の直下には、`visibility` と類型（フィールド名 `profile`。`local.<concern>_profile_defaults` と名前を揃える）だけを置く。

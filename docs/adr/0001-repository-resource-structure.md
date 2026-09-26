@@ -8,7 +8,7 @@
 
 #32 の改訂範囲: [ADR 0004](0004-terraform-module-structure-policy.md)（Terraform module 構造の方針と類型プロファイル）の決定に合わせ、決定 §1（見出し、値の置き場所、per-repo で変えられる範囲、参照先、変数レイアウトの図、適用範囲、`branch_protection.tf` との一貫性）、根拠 §1、影響の3小節（「子Issue #16 / #17 への影響」「既存 `branch_protection.tf` への波及」「新規リポ追加時の影響」）と「import 戦略への影響」の該当行、ロールバック可能性を書き換えた。#63 の改訂履歴、決定 §2・§3、根拠 §2〜§4、代替案、リポ名変更の節、付録 A・B は変更していない。書き換えた条項の一覧は、ADR 0004 の影響「ADR 0001 との関係」にある。
 
-本改訂により [ADR 0002](0002-branch-protection-preset-merge-pattern.md)（`branch_protection` の `merge()` + null 除去パターン統一、2026-06-21 承認）は superseded となる（§1「適用範囲」が `repositories` 変数全体に及び、`branch_protection` 側も同じ variable defaults パターンへ統一する方針となるため）。
+#63 の改訂により [ADR 0002](0002-branch-protection-preset-merge-pattern.md)（`branch_protection` の `merge()` + null 除去パターン統一、2026-06-21 承認）は superseded となる（§1「適用範囲」が `repositories` 変数全体に及び、`branch_protection` 側も同じ variable defaults パターンへ統一する方針となるため）。
 
 ## コンテキスト
 
@@ -72,6 +72,7 @@
       profile    = string # required。類型の宣言（ADR 0004 §7）
 
       # 設定種別 repository のキー。置くのはリポ固有値と、ADR 0004 の例外台帳に登録した属性だけ
+      # （キー自体を必須にするか optional(object(...)) にするかは #16 で確定する）
       repository = object({
         archived = bool # リポ固有値（#16 の AC により per-repo 必須）
         # ...（#16 / #17 / #7 が ADR 0004 §4 でリポ固有値に区分した属性を宣言）
