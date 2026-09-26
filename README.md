@@ -100,7 +100,6 @@ terraform version   # >= 1.6 であること
    - **Administration: Read and write**（Ruleset 操作に必須）
    - **Metadata: Read**（他権限付与時に自動で必須化される）
    - 他は **No access**。特に **Contents は付与しない**（漏洩時もコード改竄を構造的に遮断）。
-   - ラベル管理（Issue #5）着手時に **Issues: Read and write** を増分追加する。
 3. App を作成後、**Install App** で自分のアカウントにインストール。
    - **Only select repositories** を選び、**管理対象リポのみ**（現状 `gachanuma` / `github-config`）を指定。クレデンシャル到達範囲を管理対象セットに一致させる。
 4. App 設定画面で **App ID** を控える。**Private keys → Generate a private key** で PEM をダウンロードして控える。
@@ -249,7 +248,7 @@ Agent(
 
 規則は [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §3〜§6 にある。ここには手順の順序だけを書く。
 
-1. 設定種別名を ADR 0004 §3・§5 で決め、`<concern>.tf` を1枚足す（例: ラベルなら `labels.tf`）。1つの設定種別が複数のリソース型を使ってよい。
+1. 設定種別名を ADR 0004 §3・§5 で決め、`<concern>.tf` を1枚足す（例: `branch_protection.tf`）。1つの設定種別が複数のリソース型を使ってよい。
 2. 属性ごとに ADR 0004 §4 で値の区分（リポ固有値 / 類型決定値 / 全リポ共通値）を決め、区分ごとの置き場所（`repositories.<k>.<concern>.*` / `local.<concern>_profile_defaults` / `local.<concern>_preset`）に置く。類型決定値の表は4つの識別子すべてをキーに持ち、全類型に同じ属性を並べる（ADR 0004 §7。実例: `branch_protection.tf` の `branch_protection_profile_defaults`）。
 3. 特定のリポで類型決定値・全リポ共通値から外す必要がある属性は、下記「例外台帳」へ登録する（登録と per-repo のフィールドの追加を同じ変更で行う）。
 4. visibility で適用範囲を絞る場合は、適用対象の集合 `local.<concern>_targets` を置く（ADR 0004 §6）。
@@ -317,11 +316,3 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 
 - **切替順序**（二重認証を避ける）: ①App 変数3本を HCP に追加 → ②`app_auth {}` を含むコードを main へ反映 → ③`terraform plan`/`apply` 成功を確認 → ④その後に PAT 変数 `GITHUB_TOKEN` を削除し、GitHub 側の旧 PAT を revoke。PAT 削除は最後に遅延させロールバック余地を残す。
 - **ロールバック**: App 認証で plan/apply が失敗したら、HCP に `GITHUB_TOKEN`（PAT）を再追加し `providers.tf` の `app_auth {}` を revert する。provider は token 環境変数へフォールバックする。
-
----
-
-## スコープ外（将来検討）
-
-- labels / dependabot 等の追加設定種別
-- `plan` 定期実行による drift 検出の CI 自動化
-- 複数 Org への展開
