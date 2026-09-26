@@ -1,8 +1,9 @@
 locals {
   # ---------------------------------------------------------------------------
   # Branch-protection preset, applied to every managed repository.
-  # Values mirror the gachanuma "main protection" ruleset so existing repos
-  # import to a no-op. Override per repository via var.repositories.
+  # Values originally mirrored the gachanuma "main protection" ruleset so
+  # existing repos imported to a no-op; allowed_merge_methods now follows
+  # ADR 0005 (squash only). Override per repository via var.repositories.
   # ---------------------------------------------------------------------------
   branch_protection_preset = {
     name        = "main protection"
@@ -21,7 +22,7 @@ locals {
     require_code_owner_review         = false
     require_last_push_approval        = false
     required_review_thread_resolution = true
-    allowed_merge_methods             = ["rebase", "merge"]
+    allowed_merge_methods             = ["squash"]
 
     # required_status_checks rule (contexts are repo-specific → injected per repo).
     strict_required_status_checks_policy = true
