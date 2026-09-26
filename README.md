@@ -40,7 +40,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 **TF 管理下の設定は「あるべき状態」を強制する。** GitHub UI で手動変更しても、次回 `terraform plan` で drift として検出され、`apply` で宣言値へ revert される。
 
-- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) の例外台帳に登録した属性だけで、それ以外は類型または全リポ共通の値に従う（ADR 0004 §4）。
+- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) の例外台帳に登録した属性だけで、それ以外は類型または全リポ共通の値に従う（ADR 0004 §4）。ADR 0004 以前からの上書きの扱いは下記「例外台帳」に記す。
 - 既存リポを管理対象に入れるときは、**必ず `import` → `plan` で no-op 確認**してから `apply` する（いきなり apply すると既存設定を上書き新規作成する事故になる）。
 
 ---
@@ -252,25 +252,7 @@ Agent(
 
 > 既存の `branch_protection.tf`（`merge()` による合成）と `repository.tf`（`repositories` のフィールド既定値）は ADR 0004 以前のパターンのままで、ADR 0004 の値の区分への移行は別 Issue で行う（ADR 0004 の帰結）。
 
----
-
-## 手順: リポの visibility を切り替える
-
-Ruleset（`branch_protection` / `tag_protection`）は public リポにだけ適用する（[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §6）。visibility は `lifecycle.ignore_changes` の対象なので、UI の変更と宣言値の変更の順序を守る。
-
-**public → private**（宣言値を先に変える）:
-
-1. UI で変える前に、`terraform.tfvars` の当該リポの `visibility` を `private` にした PR を作る。
-2. plan で、destroy が当該リポの Ruleset 系のインスタンスだけであり、他のリポと他の設定種別に変化が無いことを確かめて apply する。
-3. apply の後に UI で当該リポを private にする。apply から UI の変更までの間、当該リポに Ruleset は無い（意図どおり）。
-
-**private → public**（UI を先に変える）:
-
-1. UI で当該リポを public にする。
-2. `gh api repos/{owner}/{repo}/rulesets` で GitHub 側に既存の Ruleset が残っていないかを確かめる。残っていれば「既存リポの取り込み（import）」の手順で取り込む。
-3. `visibility` を `public` にした PR を作り、plan で当該リポの Ruleset 系のインスタンスが create として現れることを確かめて apply する。
-
-**手順に反して UI だけで private にした場合**: 宣言値が public のままなので plan 上は変化しないが、refresh で呼ぶ Ruleset の取得 API が private の Free リポで失敗するおそれがある（未確認）。宣言値を private に直して plan する。失敗した場合の復旧手順は、private リポを最初に管理対象へ加える Issue（#4）で API の応答を確認してから追記する。
+> 現行の `branch_protection.tf` は Ruleset を visibility によらず全管理対象リポに適用しており、ADR 0004 §6 の適用対象の絞り込み（`local.<concern>_targets`）はまだ無い。絞り込みと切り替えの手順が入るまで、管理対象リポの visibility を切り替えない（private にすると、private の Free リポに Ruleset が state 上残る）。
 
 ---
 
@@ -282,6 +264,11 @@ Ruleset（`branch_protection` / `tag_protection`）は public リポにだけ適
 |---|---|---|---|---|---|---|
 
 現時点で登録なし。
+
+ただし、ADR 0004 以前から次の上書きが残っている。ADR 0004 の値の区分への移行 Issue で、ADR 0004 §4「取り込み時の食い違い」の規則により台帳への登録か実値の変更かを決める（ADR 0004 の帰結）。それまでの間、これらは規則違反としても、台帳の外で上書きしてよい前例としても扱わない。
+
+- `terraform.tfvars` の `has_wiki = true`（gachanuma / claude-shared-skills）と `delete_branch_on_merge = true`（claude-shared-skills）
+- `variables.tf` の branch protection 用の上書きフィールド（`enforcement` など、現在は未使用）。移行までの間も使わず、使う必要が生じた場合は台帳への登録を経る
 
 ---
 

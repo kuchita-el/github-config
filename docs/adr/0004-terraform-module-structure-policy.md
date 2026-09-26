@@ -156,7 +156,6 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 - リソース単位の出し分けは、設定種別ファイルの冒頭の `local.<concern>_targets` で `for_each` の対象を絞る。属性単位の出し分けは、resource の中で visibility を条件にした条件式か dynamic ブロックで行う。これは適用可否の分岐であり、例外台帳への登録を要しない。
 - Ruleset（`branch_protection` と `tag_protection`）は public リポにだけ適用する。GitHub Free では private リポで Ruleset を使えない。
 - private リポを管理対象にできるのは、リポ名（説明系の属性を管理する場合はその値も）が公開されてよい場合に限る。本リポは public で、`terraform.tfvars` に書いた値は公開される。
-- リポを public から private にするときは、UI で変える前に宣言値を private にして apply し、Ruleset を destroy しておく。private から public にするときは、UI で public にしてから宣言値を変える。具体的な手順は README の「リポの visibility を切り替える」節に置く。
 
 ### 7. 類型プロファイル
 
@@ -214,7 +213,6 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 
 - 類型と visibility は互いに独立なので、「private なら無効」を類型決定値の表で表すと、同じ類型の private リポで破綻する。per-repo のフィールドで表すと、制約を外せてしまう。
 - 適用対象の集合を設定種別ファイルの冒頭に置くと、制約がそのファイルの中で閉じる。
-- public から private への切り替えで宣言値を先に変えるのは、private リポに対する Ruleset の API の挙動（未確認）に依存しない唯一の順序だからである。
 
 ### 7. 類型プロファイル
 
@@ -238,7 +236,6 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 - **取り込みの後に Terraform で区分の値へ寄せる**: 変更がすべて plan を通るが、取り込みのたびに台帳の暫定行とフィールドを足しては消すことになる。
 - **フラットなフィールド構造のまま、衝突するものだけに接頭辞を付ける**: 接頭辞の要否がフィールドごとに揺れる。
 - **visibility の適用可否を中央の表（`locals.tf`）に置く**: 設定種別を足すたびに2つのファイルを触ることになる。
-- **public から private への切り替えで UI を先に変える**: Ruleset が無い期間は生じないが、private リポの Ruleset を扱う API が失敗した場合（未確認）、state から外す復旧作業が要る。
 - **類型の判定基準を「リポが保持する権限や秘密」にする**: 配布物とアプリの区別が基準に現れず、タグ保護の対象を決める根拠にならない。
 - **既定の類型を置く、または「類型なし」を許す**: 付け忘れたリポに方針が黙って適用されるか、表ごとに「類型なし」の行が要る。
 - **複数の類型を重ねる（`merge()` による重ね合わせ、属性ごとに厳しい方を採る、複合類型を列挙する）**: 優先順位の暗黙化、厳しさの順序の定義、型の組み合わせ爆発のいずれかを招く（#32 のコメントで却下）。
@@ -248,6 +245,7 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 - 既存の `branch_protection.tf`（`merge()` による合成、ADR 0002）と `repository.tf`（`repositories` のフィールド既定値、#16 で導入・apply 済み）は、本 ADR の値の区分に従っていない。両者を本 ADR の置き場所へ移す移行 Issue を、本 ADR の承認後に起票する。移行は `terraform plan` が No changes であることを確かめながら進める。
 - 現行の `terraform.tfvars` にある per-repo の上書き（`has_wiki`、`delete_branch_on_merge`）は、移行の際に §4「取り込み時の食い違い」の規則で扱う（例外台帳への登録か、実値の変更か）。
 - `variables.tf` に残る branch protection の未使用の上書きフィールドは、移行までの間も使わない。使う必要が生じた場合は例外台帳への登録を経る。
+- 管理対象リポの visibility を切り替えると、§6 により Ruleset のインスタンスが create / destroy される。private の Free リポに Ruleset が残らない切り替えの手順は、Ruleset の適用対象を visibility で絞る実装（`local.<concern>_targets`）を入れる Issue で定め、README に置く。
 - reviewer（`terraform-design-reviewer`）の観点6は、ADR 0001 の variable defaults パターンを正としているため、本 ADR の承認後に改訂する。
 - 設定種別を足す後続の Issue（ラベル、Dependabot、Actions 権限、タグ保護、類型の宣言など）は、本 ADR の §3〜§7 に従う。
 
@@ -264,7 +262,6 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 
 - `optional()` の既定値で、同じ object の別のフィールドや別の変数を参照できるようになった場合（§4 の前提が消える）。
 - GitHub Free で、private リポに Ruleset を使えるようになった場合（§6 の前提が消える）。
-- private リポに対する Ruleset の API の挙動が確認され、public から private への切り替えを UI 先行にできると分かった場合。
 - 例外台帳の行数が増え続け、類型の定義の見直しが要ると判断される場合。
 
 ## 付録 A: 決定時点の規模
