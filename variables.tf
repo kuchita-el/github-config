@@ -9,7 +9,7 @@ variable "repositories" {
 
     各エントリにはリポ固有値だけを書く（ADR 0004 §4・§5）。直下には visibility と
     profile（いずれも必須、既定値なし）だけを置き、それ以外のリポ固有値は設定種別名の
-    キー（repository / branch_protection）の下に入れ子にする。設定種別のキーは、その
+    キー（repository / branch_protection / actions_permissions）の下に入れ子にする。設定種別のキーは、その
     設定種別にリポ固有値があるリポだけが書き、省略すると値の無い状態（null / 空リスト）になる。
 
     全リポ共通値は各設定種別ファイル冒頭の local.<concern>_preset
@@ -55,6 +55,16 @@ variable "repositories" {
       # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。
       # status_check_contexts が空でない場合は必須。
       status_check_integration_id = optional(number)
+    }), {})
+
+    # github_actions_repository_permissions（actions_permissions.tf）のリポ固有値。
+    # 値を持たないリポは省略できる。
+    actions_permissions = optional(object({
+      # このリポジトリのワークフローが使ってよい action の追加許可パターン
+      # （allowed_actions_config.patterns_allowed）。github_owned_allowed /
+      # verified_allowed で許可される範囲を超えて使う action だけを書く
+      # （例: "jdx/mise-action@*"）。空リストは追加許可なし。
+      patterns_allowed = optional(list(string), [])
     }), {})
   }))
 

@@ -39,6 +39,9 @@ repositories = {
       status_check_contexts       = ["fmt", "validate", "tflint"]
       status_check_integration_id = 15368 # GitHub Actions
     }
+    actions_permissions = {
+      patterns_allowed = ["jdx/mise-action@*"] # ワークフローが使う外部 action
+    }
   }
 
   # claude-shared-skills: onboarded by standardizing its pre-existing ruleset
@@ -52,6 +55,10 @@ repositories = {
   "claude-shared-skills" = {
     visibility = "public"
     profile    = "distribution"
+
+    actions_permissions = {
+      patterns_allowed = ["jdx/mise-action@*"] # ワークフローが使う外部 action
+    }
   }
 
   # dependabot-triage-action: public-ized for #4 (was private). No pre-existing
@@ -67,6 +74,9 @@ repositories = {
     branch_protection = {
       status_check_contexts       = ["build"]
       status_check_integration_id = 15368 # GitHub Actions
+    }
+    actions_permissions = {
+      patterns_allowed = ["jdx/mise-action@*", "dependabot/fetch-metadata@*"] # ワークフローが使う外部 action
     }
   }
 }
