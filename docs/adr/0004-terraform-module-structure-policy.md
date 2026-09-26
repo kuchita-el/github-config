@@ -2,7 +2,7 @@
 
 ## ステータス
 
-提案中（2026-09-26、[#32](https://github.com/kuchita-el/github-config/issues/32)）
+承認（2026-09-26、[#32](https://github.com/kuchita-el/github-config/issues/32)）
 
 本 ADR は次の決定を置き換える。置き換えられた ADR の本文は変更せず、ステータス節に置き換えの旨を記す。
 

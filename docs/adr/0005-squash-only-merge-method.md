@@ -4,7 +4,7 @@
 
 承認（2026-09-26、[#70](https://github.com/kuchita-el/github-config/issues/70)）
 
-影響節の「既存の per-repo override 機構は変更しないため、個別リポジトリで本方針から外す余地は残る」は [ADR 0004](0004-terraform-module-structure-policy.md)（提案中、[#32](https://github.com/kuchita-el/github-config/issues/32)）が置き換える。`allowed_merge_methods` は ADR 0004 の全リポ共通値にあたり、個別リポジトリで外すには ADR 0004 の例外台帳への登録を要する。
+影響節の「既存の per-repo override 機構は変更しないため、個別リポジトリで本方針から外す余地は残る」は [ADR 0004](0004-terraform-module-structure-policy.md)（承認済、[#32](https://github.com/kuchita-el/github-config/issues/32)）が置き換える。`allowed_merge_methods` は ADR 0004 の全リポ共通値にあたり、個別リポジトリで外すには ADR 0004 の例外台帳への登録を要する。
 
 ## コンテキスト
 

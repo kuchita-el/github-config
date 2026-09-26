@@ -6,7 +6,7 @@
 
 改訂範囲: 決定 §1（リソース構造）および §1 に紐づく根拠・代替案・影響セクション。決定 §2（topics 方針）／決定 §3（`lifecycle.ignore_changes` 範囲）／付録 A・B は変更していない。
 
-決定 §1 のうち、値の置き場所（variable defaults パターン）と per-repo override の範囲は [ADR 0004](0004-terraform-module-structure-policy.md)（提案中、[#32](https://github.com/kuchita-el/github-config/issues/32)）が置き換える。`repository.tf` への1ファイル集約、`visibility` の必須化、決定 §2・§3 は引き続き有効である。
+決定 §1 のうち、値の置き場所（variable defaults パターン）と per-repo override の範囲は [ADR 0004](0004-terraform-module-structure-policy.md)（承認済、[#32](https://github.com/kuchita-el/github-config/issues/32)）が置き換える。`repository.tf` への1ファイル集約、`visibility` の必須化、決定 §2・§3 は引き続き有効である。
 
 本改訂により [ADR 0002](0002-branch-protection-preset-merge-pattern.md)（`branch_protection` の `merge()` + null 除去パターン統一、2026-06-21 承認）は superseded となる（§1「適用範囲」が `repositories` 変数全体に及び、`branch_protection` 側も同じ variable defaults パターンへ統一する方針となるため）。
 
