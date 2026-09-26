@@ -40,7 +40,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 **TF 管理下の設定は「あるべき状態」を強制する。** GitHub UI で手動変更しても、次回 `terraform plan` で drift として検出され、`apply` で宣言値へ revert される。
 
-- リポ個別のカスタマイズは UI で行わず、**`terraform.tfvars` の override として記述**する。
+- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) の例外台帳に登録した属性だけで、それ以外は類型または全リポ共通の値に従う（ADR 0004 §4）。ADR 0004 以前からの上書きの扱いは下記「例外台帳」に記す。
 - 既存リポを管理対象に入れるときは、**必ず `import` → `plan` で no-op 確認**してから `apply` する（いきなり apply すると既存設定を上書き新規作成する事故になる）。
 
 ---
@@ -143,7 +143,7 @@ terraform validate     # 構文・スキーマ検証
    ```bash
    gh api repos/<owner>/<repo>/rulesets --jq '.[] | {id, name}'
    ```
-2. `terraform.tfvars` の `repositories` に対象リポを追加（status check contexts 等を実態に合わせる）。
+2. `terraform.tfvars` の `repositories` に対象リポを追加（リポ固有値〔status check contexts など〕を実態に合わせる）。
 3. import ブロックを一時的に追加する（`import.tf` を作成。アドレスは `for_each` キー＝リポ名）:
    ```hcl
    import {
@@ -154,6 +154,9 @@ terraform validate     # 構文・スキーマ検証
    ```
 4. `terraform plan` を実行し、**`0 to add, 0 to change, 0 to destroy`（import のみ）** になるまで
    `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。
+   ただし、類型決定値・全リポ共通値と実態が食い違う場合は、`terraform.tfvars` や preset を実態へ寄せず、
+   [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §4 の「取り込み時の食い違い」に従う
+   （理由のある差は例外台帳へ登録し、由来の無い差は取り込み前に所有者の承認を得て GitHub 側の実値を変える）。
    差分が出やすい箇所: `allowed_merge_methods` の順序、`required_check` の集合、`integration_id` の有無、`enforcement`。
    ```
    Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
@@ -239,15 +242,33 @@ Agent(
 
 ## 手順: 設定種別を追加する（branch protection 以外）
 
-将来 labels / dependabot / merge settings 等を足すときのパターン:
+規則は [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §3〜§6 にある。ここには手順の順序だけを書く。
 
-1. 新しい設定種別ごとに `*.tf` ファイルを1枚追加（例: `repository_labels.tf`）。
-2. 全リポ共通の既定値は `variables.tf` の `repositories` object に `optional(type, default)` の default として宣言（ADR 0001 §1）。
-3. リポ別差分は `terraform.tfvars` の該当リポで当該属性を上書き。
-4. リソースは `for_each = var.repositories` でリポ単位に展開し、属性は `var.repositories[each.key].<attr>` を直接参照（1設定種別 = 1リソース）。locals での preset 定義や `merge()` による合成は行わない。
-5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（branch protection と同じ）。
+1. 設定種別名を ADR 0004 §3・§5 で決め、`<concern>.tf` を1枚足す（例: ラベルなら `labels.tf`）。1つの設定種別が複数のリソース型を使ってよい。
+2. 属性ごとに ADR 0004 §4 で値の区分（リポ固有値 / 類型決定値 / 全リポ共通値）を決め、区分ごとの置き場所（`repositories.<k>.<concern>.*` / `local.<concern>_profile_defaults` / `local.<concern>_preset`）に置く。
+3. 特定のリポで類型決定値・全リポ共通値から外す必要がある属性は、下記「例外台帳」へ登録する（登録と per-repo のフィールドの追加を同じ変更で行う）。
+4. visibility で適用範囲を絞る場合は、適用対象の集合 `local.<concern>_targets` を置く（ADR 0004 §6）。
+5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（上記「既存リポの取り込み（import）」。実値の食い違いは ADR 0004 §4）。
 
-> `repository.tf`（`github_repository`）はこのパターンに従う。`branch_protection.tf` は `local.branch_protection_preset` + `merge()` の旧パターンのままで、同パターンへの移行は ADR 0001 §影響「既存 `branch_protection.tf` への波及」で別 Issue とされている。
+> 既存の `branch_protection.tf`（`merge()` による合成）と `repository.tf`（`repositories` のフィールド既定値）は ADR 0004 以前のパターンのままで、ADR 0004 の値の区分への移行は別 Issue で行う（ADR 0004 の帰結）。
+
+> 現行の `branch_protection.tf` は Ruleset を visibility によらず全管理対象リポに適用しており、ADR 0004 §6 の適用対象の絞り込み（`local.<concern>_targets`）はまだ無い。絞り込みと切り替えの手順が入るまで、管理対象リポの visibility を切り替えない（private にすると、private の Free リポに Ruleset が state 上残る）。
+
+---
+
+## 例外台帳
+
+類型決定値・全リポ共通値のうち、特定のリポで値を変えることを許した属性の一覧。登録の要件・手続きは [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §4「例外台帳」に従う（per-repo のフィールドの追加と行の追加を同じ変更で行い、所有者の承認を得る）。
+
+| 設定種別 | 属性 | 元の区分 | 理由 | 登録した Issue / PR | 使用リポとリポごとの理由 | 見直しの条件 |
+|---|---|---|---|---|---|---|
+
+現時点で登録なし。
+
+ただし、ADR 0004 以前から次の上書きが残っている。ADR 0004 の値の区分への移行 Issue で、ADR 0004 §4「取り込み時の食い違い」の規則により台帳への登録か実値の変更かを決める（ADR 0004 の帰結）。それまでの間、これらは規則違反としても、台帳の外で上書きしてよい前例としても扱わない。
+
+- `terraform.tfvars` の `has_wiki = true`（gachanuma / claude-shared-skills）と `delete_branch_on_merge = true`（claude-shared-skills）
+- `variables.tf` の branch protection 用の上書きフィールド（`enforcement` など、現在は未使用）。移行までの間も使わず、使う必要が生じた場合は台帳への登録を経る
 
 ---
 
@@ -285,7 +306,7 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 | 症状 | 原因・対処 |
 |---|---|
 | `403 Resource not accessible by integration` | App に対象リポの **Administration: Read and write** が無い、対象リポが **インストール対象に含まれていない**、または provider の `owner` 未設定。手順3（権限・Selected repositories）を見直す |
-| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`branch_protection.tf` を実態へ寄せる |
+| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み `terraform.tfvars`/`branch_protection.tf` を実態へ寄せる。ただし、類型決定値・全リポ共通値と実態が食い違う場合は寄せず、[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §4 の「取り込み時の食い違い」に従う |
 | Speculative Plan が PR 起票後に自動起動しない | HCP Workspace の Settings → Version Control で VCS 連携が未設定か "Automatic speculative plans on pull requests" が無効。連携 UI を確認する |
 | GitHub Checks に HCP Terraform の check が現れない | GitHub App（Terraform Cloud）がリポにインストールされていないか権限が不足。HCP の VCS 設定画面の手順に従い GitHub App を再インストールする |
 | Speculative Plan が `Error` / `Failed` で終わる | `.tf` 構文エラー・provider 認証失敗・変数未定義が原因のことが多い。HCP UI の Run ログで詳細を確認し、ローカルで `terraform validate` / `terraform fmt` を実施する |
