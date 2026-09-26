@@ -97,32 +97,32 @@
   - 観測対象: root 直下の `*.tf` から `terraform.tf` / `providers.tf` / `variables.tf` / `locals.tf` / `outputs.tf` を除いたファイルの数
   - 閾値: 10 を超える
   - 測定方法: root 直下の `*.tf` を列挙し、上の5つの名前を除いて数える
-  - 発火時の行動: 構成を見直す Issue を起票する
+  - 発火時の行動: 構成を見直す Issue を起票する（本節末尾の「区分 C の発火時の行動」）
   - 観点9: 対象（Glob で数えられる）
 - **C-3 `.tf` の行数**
   - 観測対象: root 直下の各 `.tf` の行数
   - 閾値: いずれか1つでも 300 行を超える
   - 測定方法: root 直下で `wc -l *.tf` を実行する
-  - 発火時の行動: 構成を見直す Issue を起票する
+  - 発火時の行動: 構成を見直す Issue を起票する（本節末尾の「区分 C の発火時の行動」）
   - 観点9: 対象（Read で行数を数えられる）
 - **C-4 管理リソース数**
   - 観測対象: HCP Terraform の管理リソース数。HCP Terraform Free の上限（組織全体で 500）と同じ数え方で、`for_each` の各インスタンスを1件と数える
   - 閾値: 400（Free の上限の 80%）を超える
   - 測定方法: HCP Terraform の組織が管理するリソースインスタンスを数える。本 root の分は、resource ブロックごとの `for_each` の展開後のインスタンス数を足して数えられる
-  - 発火時の行動: 構成を見直す Issue を起票する。管理リソース数は組織全体で数えるので、module 化しても Workspace を分けても減らない。見直しの Issue では、リソースのモデリングの見直し（集約型リソースの採用など）か、HCP のプランの変更を判断する
+  - 発火時の行動: 構成を見直す Issue を起票する（本節末尾の「区分 C の発火時の行動」）。管理リソース数は組織全体で数えるので、module 化しても Workspace を分けても減らない。見直しの Issue では、リソースのモデリングの見直し（集約型リソースの採用など）か、HCP のプランの変更を判断する
   - 観点9: 対象外（state か HCP の情報が要る）
 - **C-5 GitHub API のレート制限**
   - 観測対象: HCP の Remote 実行の plan の結果
   - 事象: GitHub API のレート制限を原因として plan が失敗する（1回で発火する）
   - 測定方法: 失敗した run のログで、エラーが GitHub API のレート制限によるものかを確かめる
-  - 発火時の行動: 構成を見直す Issue を起票する
+  - 発火時の行動: 構成を見直す Issue を起票する（本節末尾の「区分 C の発火時の行動」）
   - 観点9: 対象外（HCP の実行結果が要る）
 
 **区分 C の発火時の行動**: 構成を見直す Issue を起票する。見直しの Issue では、公式スタイルガイドが大きなコードベースに勧める Workspace の分割と、リソースのモデリングの見直し（集約型リソースの採用など）を比べる。閾値を超えたこと自体は分割の理由にしない。見直しの Issue が Workspace の分割を結論した場合は、その結論を新しい ADR（または本 ADR §2 の改訂）として記録してから分割する。
 
 #### 発動条件に採らないもの
 
-- **テストの独立性**: 本リポには自動テストが無い。また `terraform test` は、コマンドを実行したディレクトリの設定をそのまま対象にでき（公式ドキュメント「Tests」の要旨。2026-09-26 確認）、テストのために module 化する必要が無い。
+- **テストの独立性**: 本リポには自動テストが無い。また `terraform test` は、コマンドを実行したディレクトリの設定をそのまま対象にでき、テストのために module 化する必要が無い。公式ドキュメント「Tests」（<https://developer.hashicorp.com/terraform/language/tests>、2026-09-26 取得）は run ブロックについて "Each run block simulates a series of Terraform commands executing directly within the configuration directory." と述べている。
 - **共通設定の共有**（調査の問い2の「共通設定共有」）は B-1 として扱う。**root module の認知負荷の限界**は、C-1〜C-3 の定量の閾値で観測する。
 
 調査の問い1には §1・根拠 §1・付録 A が、問い2には本節と付録 A が答える。
@@ -174,7 +174,7 @@
 
 #### 3つの区分
 
-- **リポ固有値**: リポの同一性や構成に由来し、方針として揃える値を持たないもの（例: リポ名、説明、topics、CI の job 名、visibility、類型、archived）。
+- **リポ固有値**: リポの同一性や構成に由来し、方針として揃える値を持たないもの（例: リポ名、説明、topics、CI の job 名、visibility、類型、archived）。このうち visibility は、§6 で適用範囲を決める軸として類型と独立にも扱う（類型と visibility の組み合わせには制約を置かない）。
 - **類型決定値**: 方針として揃える値（方針値）があり、その方針値が類型（§7）によって変わるもの。
 - **全リポ共通値**: 方針値があり、類型を問わず同じもの。
 
@@ -232,6 +232,8 @@
 
 GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.md §2 の import、または管理済みのリソースに未管理だった属性を加えるとき）、ある属性の実値が、そのリポに適用される類型決定値・全リポ共通値と異なる場合は、次のとおり扱う。リポ固有値は、実値を `terraform.tfvars` に宣言して合わせる。
 
+本規則の対象は、未管理の設定を管理下に入れる場面（import と、未管理だった属性の追加）に限る。すでに管理下にある属性の方針値を変える変更（例: #71 が `strict_required_status_checks_policy` の値を類型ごとに決める）は、本節の「区分の変更」と同じく、plan の in-place update としてレビューして apply する。類型の宣言（`profile`）は GitHub 側に実値を持たない宣言入力なので、本規則の対象外である。
+
 1. 食い違いの由来を判定する。リポの性質から来る差で、上の「登録の要件」を満たし理由を書けるものを「理由のある差」、過去の UI 操作の名残など理由を書けないものを「由来の無い差」とする。
 2. 理由のある差は、例外台帳に恒久的に登録し（登録の手続きに従う）、per-repo の値として実値を宣言して、import の plan を no-op にする。
 3. 由来の無い差は、取り込みの前に GitHub 側の実値を区分の値へ変え、そのうえで import の plan が no-op であることを確かめて取り込む。実値の変更は外から観測される振る舞いの変更なので、リポと属性ごとに所有者の承認を得てから行い、取り込み Issue に記録する（リポ、属性、変更前後の値、承認）。所有者が実値の変更を承認しなかった場合は、「所有者が変更しないと判断した」を理由として例外台帳に登録し（登録の手続きに従う）、per-repo の値として実値を宣言して取り込む。
@@ -239,7 +241,8 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 - `terraform.tfvars`、`local.<concern>_preset`、`local.<concern>_profile_defaults` を、食い違ったリポの実態へ寄せない（共通値や類型の表を寄せると、そのリポ以外の方針も変わる）。CLAUDE.md §2 の手順2 が述べる「`terraform.tfvars` / `branch_protection.tf` を実態へ寄せる」は、リポ固有値と、台帳登録属性の per-repo の値に限って行う。
 - import と同じ plan で、食い違う属性を in-place update する手順は採らない。CLAUDE.md §2 は、import の plan が `0 to change` であることを求めている。
 - 前例: #4 では、dependabot-triage-action を取り込みの前に承認を得て public 化した（#4 の 2026-06-15 のコメント）。
-- 既知の食い違い: `has_wiki`（gachanuma と claude-shared-skills が true、ほかは false）と `delete_branch_on_merge`（claude-shared-skills だけ true）がある（ADR 0001 付録 A、2026-06-20 取得。後者は #17 の 2026-09-12 のコメントでも確認）。これらの区分は #16・#17 が判定し、類型決定値か全リポ共通値に区分した場合に本規則を適用する。
+- 既知の食い違い: `has_wiki`（gachanuma と claude-shared-skills が true、ほかは false）と `delete_branch_on_merge`（claude-shared-skills だけ true）がある（ADR 0001 付録 A、2026-06-20 取得。後者は #17 の 2026-09-12 のコメントでも確認）。これらの区分は #16・#17 が判定し、類型決定値か全リポ共通値に区分した場合に本規則を適用する。これ以外の属性は、取り込みを行う Issue が取り込みの前に実値を取得して判定する。
+- 1:N の集合（§3）への当てはめ: 共通集合に無い要素がリポにある場合は、そのリポの追加分（`add`、リポ固有値）として宣言するか、管理外の要素として残すかを、担当 Issue（#5）が §3 の判断基準（管理外の要素を削除してよいか）に従って決める。共通集合の要素がリポに無い場合は、属性の場合と同じく由来で分け、理由のある差は除外分（`exclude`、台帳登録）とし、由来の無い差は取り込みの前に要素を作る。
 
 #### 区分の変更
 
@@ -441,7 +444,7 @@ GitHub 側に既に存在する設定を管理対象に入れるとき（CLAUDE.
 
 - **定性的な事象を分割の必要条件にする**: 行数やファイル数が増えたこと自体は module 化の理由にならない（根拠 §1 の公式ガイド）。閾値の超過を「分割する」に直結させると誤った分割を誘発するので、分割は事象（区分 A）に結び付け、定量の閾値は見直しの Issue を起票する条件（区分 C）に留める。これにより、規模の悪化を検知しつつ、分割の判断を事象に結び付けられる。
 - **区分の順序で行動を1つに決める**: child module 化の区分 B を区分 A の後にだけ評価するので、1つの事象から2つの行動が並び立たない。
-- **閾値の数値**: バックログ（#5 / #7 / #16 / #17 / #73 / #74）が着地した後の見込み（resource 型 6〔ruleset / repository / issue labels / dependabot security updates / actions repository permissions / workflow repository permissions〕、設定種別ファイル 6〜7）に対して、1.5〜2 倍の余裕を取った。C-4 の 400 は HCP Terraform Free の上限 500 の 80% である（公式ドキュメント「HCP Terraform overview」の要旨: Free の上限は管理リソース 500 で、`for_each` の各インスタンスを数える。2026-09-26 確認）。
+- **閾値の数値**: バックログ（#5 / #7 / #16 / #17 / #73 / #74）が着地した後の見込み（resource 型 6〔ruleset / repository / issue labels / dependabot security updates / actions repository permissions / workflow repository permissions〕、設定種別ファイル 6〜7）に対して、1.5〜2 倍の余裕を取った。C-4 の 400 は HCP Terraform Free の上限 500 の 80% である。公式ドキュメント「HCP Terraform overview」（<https://developer.hashicorp.com/terraform/cloud-docs/overview>、2026-09-26 取得）は "Free organizations are limited to 500 managed resources." とし、管理リソースの例に "Resources created by count and for_each meta-arguments" を挙げている。
 - **観測できること**: C-1〜C-3 は Read / Grep / Glob で数えられるので、Bash を持たない reviewer でも評価できる。C-4・C-5 は state や HCP の実行結果が要る。
 - **環境分離**: 公式スタイルガイドも、HCP 利用時の環境の分離を環境ごとの Workspace として扱っている（根拠 §1）。本リポには環境の区別が無いので、検証用の owner / Org を設ける場合として A-2 に含めた。
 
