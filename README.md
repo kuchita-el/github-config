@@ -14,12 +14,14 @@
 ## アーキテクチャ
 
 ```
-terraform.tfvars (管理対象リポ + リポ別override)
+terraform.tfvars (管理対象リポ + リポ固有値)
         │
         ▼
-branch_protection.tf  branch_protection_preset(全リポ共通の既定) と override を merge() で合成
+branch_protection.tf  全リポ共通値 local.branch_protection_preset と
+                      リポ固有値 repositories.<k>.branch_protection.* を直接参照
                       github_repository_ruleset を for_each でリポ単位に展開
-repository.tf         variables.tf の optional default(全リポ共通の既定) を直接参照
+repository.tf         全リポ共通値 local.repository_preset と
+                      リポ固有値 repositories.<k>.repository.* を直接参照
                       github_repository を for_each でリポ単位に展開
         │
         ▼
@@ -30,9 +32,9 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 |---|---|
 | `terraform.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
-| `variables.tf` | `github_owner`、`repositories`（管理対象 + override）の型定義 |
-| `branch_protection.tf` | `branch_protection_preset`（既定）とリポ別 override の合成ロジック + Ruleset リソース（`for_each` 展開） |
-| `repository.tf` | `github_repository` リソース（`for_each` 展開）。属性は `var.repositories` を直接参照 + `lifecycle.ignore_changes` |
+| `variables.tf` | `github_owner`、`repositories`（管理対象 + リポ固有値）の型定義 |
+| `branch_protection.tf` | `local.branch_protection_preset`（全リポ共通値）+ Ruleset リソース（`for_each` 展開）。リポ固有値は `repositories.<k>.branch_protection.*` を直接参照 |
+| `repository.tf` | `local.repository_preset`（全リポ共通値）+ `github_repository` リソース（`for_each` 展開）。リポ固有値は `repositories.<k>.repository.*` を直接参照 + `lifecycle.ignore_changes` |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -40,7 +42,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 **TF 管理下の設定は「あるべき状態」を強制する。** GitHub UI で手動変更しても、次回 `terraform plan` で drift として検出され、`apply` で宣言値へ revert される。
 
-- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) の例外台帳に登録した属性だけで、それ以外は類型または全リポ共通の値に従う（ADR 0004 §4）。ADR 0004 以前からの上書きの扱いは下記「例外台帳」に記す。
+- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) の例外台帳に登録した属性だけで、それ以外は類型または全リポ共通の値に従う（ADR 0004 §4）。
 - 既存リポを管理対象に入れるときは、**必ず `import` → `plan` で no-op 確認**してから `apply` する（いきなり apply すると既存設定を上書き新規作成する事故になる）。
 
 ---
@@ -55,7 +57,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | 管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。 | `string` | n/a | yes |
-| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリは branch\_protection.tf で定義したブランチ保護プリセットを上書きする。<br/>属性を未指定にするとプリセットの値を引き継ぐ。リポジトリごとに異なるのが通例の値は<br/>必須ステータスチェックのコンテキスト（CI ジョブ名）のみであり、<br/>そのためプリセットではなくここに置く。<br/><br/>github\_repository の属性（visibility を除く）は optional の default をプリセット値とし、<br/>差分のあるリポジトリだけが値を指定する（ADR 0001 §1）。visibility は全リポジトリで必須。<br/><br/>profile（類型プロファイル、ADR 0004 §7）も全リポジトリで必須。類型ごとの設定既定値を<br/>参照する resource は未実装で、現時点では宣言と検証のみ行う。 | <pre>map(object({<br/>    # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない<br/>    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、<br/>    # default を持たせない。<br/>    visibility = string<br/><br/>    # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。<br/>    # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。<br/>    # 類型ごとの設定既定値（local.<concern>_profile_defaults）を消費する resource は本 Issue では<br/>    # まだ無く、ここでは宣言と検証だけを行う。<br/>    profile = string<br/><br/>    # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>    # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>    status_check_contexts = optional(list(string), [])<br/>    # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>    # status_check_contexts が空でない場合は必須。<br/>    status_check_integration_id = optional(number)<br/><br/>    # リポジトリ単位でのプリセット上書き（任意）。null はプリセットの値を引き継ぐ。<br/>    enforcement                          = optional(string)<br/>    required_approving_review_count      = optional(number)<br/>    dismiss_stale_reviews_on_push        = optional(bool)<br/>    require_code_owner_review            = optional(bool)<br/>    require_last_push_approval           = optional(bool)<br/>    required_review_thread_resolution    = optional(bool)<br/>    allowed_merge_methods                = optional(list(string))<br/>    strict_required_status_checks_policy = optional(bool)<br/>    do_not_enforce_on_create             = optional(bool)<br/><br/>    # github_repository のセキュリティ系属性（ADR 0001 §1 / Issue #16）。<br/>    # default がプリセット値（管理対象4リポの共通値、ADR 0001 付録 A）で、リポジトリ単位で上書きできる。<br/>    # 書き込み可能な状態を既定とする。lifecycle.ignore_changes で drift から保護する。<br/>    archived = optional(bool, false)<br/>    # 条件を満たした PR が人のレビューを経ずにマージされる経路を既定で閉じる。<br/>    allow_auto_merge = optional(bool, false)<br/>    # wiki / projects / discussions は外部からの書き込み面を広げるため、実態に合わせつつ既定で絞る。<br/>    has_wiki        = optional(bool, false)<br/>    has_projects    = optional(bool, true)<br/>    has_discussions = optional(bool, false)<br/><br/>    # github_repository の開発プロセス系属性のうち、#16 に前倒しするもの（ADR 0001 §影響 #16）。<br/>    # provider はこれらを宣言しないと空値（false / null）へ変更する plan を出すため、import を no-op に<br/>    # するには #16 の時点で実態値の宣言が要る。has_issues の default は ADR 0001 §影響 #17 の preset 値。<br/>    # delete_branch_on_merge の default は true（全リポ共通）。ADR 0001 §影響 #17 の preset 値は false<br/>    # だったが、値統一 PR でユーザー判断により claude-shared-skills の実値 true へ全リポを揃えた。<br/>    has_issues             = optional(bool, true)<br/>    delete_branch_on_merge = optional(bool, true)<br/>    # preset 値が null のため default を省略する（null = 説明文なし）。<br/>    description = optional(string)<br/>  }))</pre> | n/a | yes |
+| <a name="input_repositories"></a> [repositories](#input\_repositories) | 管理対象リポジトリ。キーはリポジトリ名。<br/><br/>各エントリにはリポ固有値だけを書く（ADR 0004 §4・§5）。直下には visibility と<br/>profile（いずれも必須、既定値なし）だけを置き、それ以外のリポ固有値は設定種別名の<br/>キー（repository / branch\_protection）の下に入れ子にする。設定種別のキーは、その<br/>設定種別にリポ固有値があるリポだけが書き、省略すると値の無い状態（null / 空リスト）になる。<br/><br/>全リポ共通値は各設定種別ファイル冒頭の local.<concern>\_preset<br/>（repository.tf の repository\_preset、branch\_protection.tf の branch\_protection\_preset）に置き、<br/>ここでは変えられない。特定のリポで全リポ共通値から外すには、README の「例外台帳」への<br/>登録を要する。<br/><br/>profile（類型プロファイル、ADR 0004 §7）の類型ごとの設定既定値を参照する resource は<br/>未実装で、現時点では宣言と検証のみ行う。 | <pre>map(object({<br/>    # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない<br/>    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、<br/>    # default を持たせない。<br/>    visibility = string<br/><br/>    # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。<br/>    # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。<br/>    # 類型ごとの設定既定値（local.<concern>_profile_defaults）を消費する resource はまだ無く、<br/>    # ここでは宣言と検証だけを行う。<br/>    profile = string<br/><br/>    # github_repository（repository.tf）のリポ固有値。値を持たないリポは省略できる。<br/>    repository = optional(object({<br/>      # アーカイブ済みか。null は未アーカイブ（provider の既定値 false）として扱われる。<br/>      # lifecycle.ignore_changes の対象で、drift は plan に出ない。<br/>      archived = optional(bool)<br/>      # リポジトリの説明文。null は説明文なし。<br/>      description = optional(string)<br/>    }), {})<br/><br/>    # github_repository_ruleset.branch_protection（branch_protection.tf）のリポ固有値。<br/>    # 値を持たないリポは省略できる。<br/>    branch_protection = optional(object({<br/>      # このリポジトリの必須ステータスチェックのコンテキスト（CI ジョブ名）。<br/>      # 空リストの場合、このリポジトリには required_status_checks ルールを作らない。<br/>      status_check_contexts = optional(list(string), [])<br/>      # 上記チェックを生成する GitHub App の ID（15368 = GitHub Actions）。<br/>      # status_check_contexts が空でない場合は必須。<br/>      status_check_integration_id = optional(number)<br/>    }), {})<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 
@@ -232,7 +234,7 @@ Agent(
 
 - **既存 Ruleset があるリポ** → 上記「既存リポの取り込み（import）」に従う（import 必須）。
 - **Ruleset が無い新規リポ**:
-  1. `terraform.tfvars` の `repositories` にリポ名を追加（CI があれば `status_check_contexts` も）。`visibility` と `profile`（[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §7、必須・既定値なし）を宣言し、判定根拠をコメントで残す。
+  1. `terraform.tfvars` の `repositories` にリポ名を追加する。`visibility` と `profile`（[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §7、必須・既定値なし）を直下に宣言し、判定根拠をコメントで残す。リポ固有値は設定種別名のキーの下に入れ子で書く（CI があれば `branch_protection = { status_check_contexts = [...], status_check_integration_id = 15368 }`、説明文があれば `repository = { description = "..." }`）。値の無い設定種別のキーは省略する（ADR 0004 §5）。全リポ共通値（`local.<concern>_preset`）はここに書かない。
   2. `terraform plan` で「1 to add」になることを確認（他リポが recreate されないこと）。
   3. `terraform apply`。
 
@@ -250,8 +252,6 @@ Agent(
 4. visibility で適用範囲を絞る場合は、適用対象の集合 `local.<concern>_targets` を置く（ADR 0004 §6）。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（上記「既存リポの取り込み（import）」。実値の食い違いは ADR 0004 §4）。
 
-> 既存の `branch_protection.tf`（`merge()` による合成）と `repository.tf`（`repositories` のフィールド既定値）は ADR 0004 以前のパターンのままで、ADR 0004 の値の区分への移行は別 Issue で行う（ADR 0004 の帰結）。
-
 > 現行の `branch_protection.tf` は Ruleset を visibility によらず全管理対象リポに適用しており、ADR 0004 §6 の適用対象の絞り込み（`local.<concern>_targets`）はまだ無い。絞り込みと切り替えの手順が入るまで、管理対象リポの visibility を切り替えない（private にすると、private の Free リポに Ruleset が state 上残る）。
 
 ---
@@ -264,10 +264,6 @@ Agent(
 |---|---|---|---|---|---|---|
 
 現時点で登録なし。
-
-ただし、ADR 0004 以前から次の上書きが残っている。ADR 0004 の値の区分への移行 Issue で、ADR 0004 §4「取り込み時の食い違い」の規則により台帳への登録か実値の変更かを決める（ADR 0004 の帰結）。それまでの間、これらは規則違反としても、台帳の外で上書きしてよい前例としても扱わない。
-
-- `variables.tf` の branch protection 用の上書きフィールド（`enforcement` など、現在は未使用）。移行までの間も使わず、使う必要が生じた場合は台帳への登録を経る
 
 ---
 

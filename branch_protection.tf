@@ -1,9 +1,12 @@
 locals {
   # ---------------------------------------------------------------------------
-  # Branch-protection preset, applied to every managed repository.
-  # Values originally mirrored the gachanuma "main protection" ruleset so
-  # existing repos imported to a no-op; allowed_merge_methods now follows
-  # ADR 0005 (squash only). Override per repository via var.repositories.
+  # Branch-protection preset: all-repository common values (ADR 0004 §4),
+  # applied to every managed repository and referenced directly by the
+  # resource below. Values originally mirrored the gachanuma "main protection"
+  # ruleset so existing repos imported to a no-op; allowed_merge_methods now
+  # follows ADR 0005 (squash only). They cannot be changed per repository;
+  # deviating a repository requires registering the attribute in the README
+  # exception ledger (ADR 0004 §4).
   # ---------------------------------------------------------------------------
   branch_protection_preset = {
     name        = "main protection"
@@ -24,45 +27,25 @@ locals {
     required_review_thread_resolution = true
     allowed_merge_methods             = ["squash"]
 
-    # required_status_checks rule (contexts are repo-specific → injected per repo).
+    # required_status_checks rule (contexts are repo-specific → var.repositories).
     strict_required_status_checks_policy = true
     do_not_enforce_on_create             = false
-  }
-}
-
-locals {
-  # ---------------------------------------------------------------------------
-  # Effective settings per repository = preset merged with per-repo override.
-  # merge() args:
-  #   1. branch_protection_preset — all base values
-  #   2. non-null override keys that exist in the preset (contains filter excludes status_check_*)
-  #   3. status_check_* injected explicitly (repo-specific keys absent from the preset)
-  # ---------------------------------------------------------------------------
-  branch_protection = {
-    for repo, ovr in var.repositories : repo => merge(
-      local.branch_protection_preset,
-      {
-        for k, v in ovr : k => v
-        if v != null && contains(keys(local.branch_protection_preset), k)
-      },
-      {
-        status_check_contexts       = ovr.status_check_contexts
-        status_check_integration_id = ovr.status_check_integration_id
-      }
-    )
   }
 }
 
 # Branch protection (Repository Ruleset) for every managed repository.
 # One ruleset per repo, expanded with for_each keyed by repository name so that
 # adding/removing a repo never recreates the others.
+# All-repository common values come from local.branch_protection_preset;
+# repo-specific values (status check contexts / integration ID) come from
+# var.repositories[<repo>].branch_protection (ADR 0004 §4・§5).
 resource "github_repository_ruleset" "branch_protection" {
-  for_each = local.branch_protection
+  for_each = var.repositories
 
-  name        = each.value.name
+  name        = local.branch_protection_preset.name
   repository  = each.key
-  target      = each.value.target
-  enforcement = each.value.enforcement
+  target      = local.branch_protection_preset.target
+  enforcement = local.branch_protection_preset.enforcement
 
   conditions {
     ref_name {
@@ -72,33 +55,33 @@ resource "github_repository_ruleset" "branch_protection" {
   }
 
   rules {
-    creation            = each.value.creation
-    deletion            = each.value.deletion
-    non_fast_forward    = each.value.non_fast_forward
-    required_signatures = each.value.required_signatures
+    creation            = local.branch_protection_preset.creation
+    deletion            = local.branch_protection_preset.deletion
+    non_fast_forward    = local.branch_protection_preset.non_fast_forward
+    required_signatures = local.branch_protection_preset.required_signatures
 
     pull_request {
-      required_approving_review_count   = each.value.required_approving_review_count
-      dismiss_stale_reviews_on_push     = each.value.dismiss_stale_reviews_on_push
-      require_code_owner_review         = each.value.require_code_owner_review
-      require_last_push_approval        = each.value.require_last_push_approval
-      required_review_thread_resolution = each.value.required_review_thread_resolution
-      allowed_merge_methods             = each.value.allowed_merge_methods
+      required_approving_review_count   = local.branch_protection_preset.required_approving_review_count
+      dismiss_stale_reviews_on_push     = local.branch_protection_preset.dismiss_stale_reviews_on_push
+      require_code_owner_review         = local.branch_protection_preset.require_code_owner_review
+      require_last_push_approval        = local.branch_protection_preset.require_last_push_approval
+      required_review_thread_resolution = local.branch_protection_preset.required_review_thread_resolution
+      allowed_merge_methods             = local.branch_protection_preset.allowed_merge_methods
     }
 
     # Only emit a required_status_checks rule when the repo declares CI contexts.
     dynamic "required_status_checks" {
-      for_each = length(each.value.status_check_contexts) > 0 ? [1] : []
+      for_each = length(each.value.branch_protection.status_check_contexts) > 0 ? [1] : []
       content {
         dynamic "required_check" {
-          for_each = each.value.status_check_contexts
+          for_each = each.value.branch_protection.status_check_contexts
           content {
             context        = required_check.value
-            integration_id = each.value.status_check_integration_id
+            integration_id = each.value.branch_protection.status_check_integration_id
           }
         }
-        strict_required_status_checks_policy = each.value.strict_required_status_checks_policy
-        do_not_enforce_on_create             = each.value.do_not_enforce_on_create
+        strict_required_status_checks_policy = local.branch_protection_preset.strict_required_status_checks_policy
+        do_not_enforce_on_create             = local.branch_protection_preset.do_not_enforce_on_create
       }
     }
   }
