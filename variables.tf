@@ -14,11 +14,11 @@ variable "repositories" {
 
     全リポ共通値は各設定種別ファイル冒頭の local.<concern>_preset
     （repository.tf の repository_preset、branch_protection.tf の branch_protection_preset）に置き、
-    ここでは変えられない。特定のリポで全リポ共通値から外すには、README の「例外台帳」への
-    登録を要する。
-
-    profile（類型プロファイル、ADR 0004 §7）の類型ごとの設定既定値を参照する resource は
-    未実装で、現時点では宣言と検証のみ行う。
+    ここでは変えられない。類型決定値は各設定種別ファイル冒頭の
+    local.<concern>_profile_defaults（branch_protection.tf の
+    branch_protection_profile_defaults）に置き、各リポの profile（類型プロファイル、
+    ADR 0004 §7）で引く。これもここでは変えられない。特定のリポで全リポ共通値・
+    類型決定値から外すには、README の「例外台帳」への登録を要する。
   EOT
 
   type = map(object({
@@ -29,8 +29,7 @@ variable "repositories" {
 
     # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。
     # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。
-    # 類型ごとの設定既定値（local.<concern>_profile_defaults）を消費する resource はまだ無く、
-    # ここでは宣言と検証だけを行う。
+    # 類型決定値の表（local.<concern>_profile_defaults）を引くキーになる。
     profile = string
 
     # github_repository（repository.tf）のリポ固有値。値を持たないリポは省略できる。

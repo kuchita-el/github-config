@@ -1,5 +1,31 @@
 locals {
   # ---------------------------------------------------------------------------
+  # Branch-protection profile defaults: per-profile values (ADR 0004 §4・§7),
+  # keyed by every profile identifier with the same attribute set in each row,
+  # and referenced directly by the resource below via each.value.profile.
+  # They cannot be changed per repository; deviating a repository requires
+  # registering the attribute in the README exception ledger (ADR 0004 §4).
+  # ---------------------------------------------------------------------------
+  branch_protection_profile_defaults = {
+    # strict_required_status_checks_policy ("Require branches to be up to date
+    # before merging"), decided in ADR 0007: off only where a semantic conflict
+    # that slips past pre-merge CI is caught by main's CI and never reaches a
+    # real environment or a consumer directly (app).
+    distribution = {
+      strict_required_status_checks_policy = true
+    }
+    infra = {
+      strict_required_status_checks_policy = true
+    }
+    app = {
+      strict_required_status_checks_policy = false
+    }
+    local_config = {
+      strict_required_status_checks_policy = true
+    }
+  }
+
+  # ---------------------------------------------------------------------------
   # Branch-protection preset: all-repository common values (ADR 0004 §4),
   # applied to every managed repository and referenced directly by the
   # resource below. Values originally mirrored the gachanuma "main protection"
@@ -27,9 +53,9 @@ locals {
     required_review_thread_resolution = true
     allowed_merge_methods             = ["squash"]
 
-    # required_status_checks rule (contexts are repo-specific → var.repositories).
-    strict_required_status_checks_policy = true
-    do_not_enforce_on_create             = false
+    # required_status_checks rule (contexts are repo-specific → var.repositories;
+    # strict_required_status_checks_policy is per-profile → profile defaults above).
+    do_not_enforce_on_create = false
   }
 }
 
@@ -37,7 +63,8 @@ locals {
 # One ruleset per repo, expanded with for_each keyed by repository name so that
 # adding/removing a repo never recreates the others.
 # All-repository common values come from local.branch_protection_preset;
-# repo-specific values (status check contexts / integration ID) come from
+# per-profile values come from local.branch_protection_profile_defaults keyed by
+# var.repositories[<repo>].profile; repo-specific values (status check contexts / integration ID) come from
 # var.repositories[<repo>].branch_protection (ADR 0004 §4・§5).
 resource "github_repository_ruleset" "branch_protection" {
   for_each = var.repositories
@@ -80,7 +107,7 @@ resource "github_repository_ruleset" "branch_protection" {
             integration_id = each.value.branch_protection.status_check_integration_id
           }
         }
-        strict_required_status_checks_policy = local.branch_protection_preset.strict_required_status_checks_policy
+        strict_required_status_checks_policy = local.branch_protection_profile_defaults[each.value.profile].strict_required_status_checks_policy
         do_not_enforce_on_create             = local.branch_protection_preset.do_not_enforce_on_create
       }
     }
