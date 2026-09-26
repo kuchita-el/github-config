@@ -1,6 +1,6 @@
 # Config-driven import for the 4 managed repos.
 # Temporary: delete this file after the initial apply imports the repos into
-# state (Issue #16 Task 10 / plan-issue-16). README "既存リポの取り込み" describes
+# state (Issue #16). README "既存リポの取り込み" describes
 # the workflow.
 #
 # import id for github_repository = the repository name (single string).
