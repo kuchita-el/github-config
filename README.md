@@ -322,6 +322,6 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 
 ## スコープ外（将来検討）
 
-- merge settings / labels / dependabot 等の追加設定種別
+- labels / dependabot 等の追加設定種別
 - `plan` 定期実行による drift 検出の CI 自動化
 - 複数 Org への展開

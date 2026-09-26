@@ -23,6 +23,19 @@ locals {
     has_issues             = true
     delete_branch_on_merge = true
 
+    # Merge methods: squash only, matching the Ruleset's allowed_merge_methods
+    # (ADR 0005, local.branch_protection_preset) at the repository layer so the
+    # merge button offers squash alone (Issue #17). The squash commit defaults
+    # to the PR title and body. The provider sends the squash_* attributes only
+    # while allow_squash_merge is true, and merge_commit_title /
+    # merge_commit_message only while allow_merge_commit is true, so the latter
+    # two are not declared here (they stay at the provider defaults).
+    allow_merge_commit          = false
+    allow_rebase_merge          = false
+    allow_squash_merge          = true
+    squash_merge_commit_title   = "PR_TITLE"
+    squash_merge_commit_message = "PR_BODY"
+
     # Default branch of every repository, applied by github_branch_default below
     # (Issue #17). Not the deprecated github_repository.default_branch.
     default_branch = "main"
@@ -64,6 +77,12 @@ resource "github_repository" "this" {
   has_discussions        = local.repository_preset.has_discussions
   has_issues             = local.repository_preset.has_issues
   delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
+
+  allow_merge_commit          = local.repository_preset.allow_merge_commit
+  allow_rebase_merge          = local.repository_preset.allow_rebase_merge
+  allow_squash_merge          = local.repository_preset.allow_squash_merge
+  squash_merge_commit_title   = local.repository_preset.squash_merge_commit_title
+  squash_merge_commit_message = local.repository_preset.squash_merge_commit_message
 
   lifecycle {
     # Drift protection: UI/API changes to these attributes do not surface as plan
