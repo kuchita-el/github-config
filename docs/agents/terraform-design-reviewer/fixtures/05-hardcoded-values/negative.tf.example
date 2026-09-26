@@ -1,14 +1,18 @@
 # Fixture (negative): 15368 を terraform.tfvars 経由で参照。
 # 既存 branch_protection.tf の required_check と同様のパターン。
 # 期待: 観点 5 は発火しない。
+#
+# PR の内容: branch_protection.tf の Ruleset を現行の形で定義する
+# （locals の branch_protection_preset と variables.tf / terraform.tfvars は main のまま）。
 
+# --- branch_protection.tf（PR 後、resource） ---
 resource "github_repository_ruleset" "branch_protection" {
-  for_each = local.branch_protection
+  for_each = var.repositories
 
-  name        = each.value.name
+  name        = local.branch_protection_preset.name
   repository  = each.key
-  target      = each.value.target
-  enforcement = each.value.enforcement
+  target      = local.branch_protection_preset.target
+  enforcement = local.branch_protection_preset.enforcement
 
   conditions {
     ref_name {
@@ -18,17 +22,34 @@ resource "github_repository_ruleset" "branch_protection" {
   }
 
   rules {
+    creation            = local.branch_protection_preset.creation
+    deletion            = local.branch_protection_preset.deletion
+    non_fast_forward    = local.branch_protection_preset.non_fast_forward
+    required_signatures = local.branch_protection_preset.required_signatures
+
+    pull_request {
+      required_approving_review_count   = local.branch_protection_preset.required_approving_review_count
+      dismiss_stale_reviews_on_push     = local.branch_protection_preset.dismiss_stale_reviews_on_push
+      require_code_owner_review         = local.branch_protection_preset.require_code_owner_review
+      require_last_push_approval        = local.branch_protection_preset.require_last_push_approval
+      required_review_thread_resolution = local.branch_protection_preset.required_review_thread_resolution
+      allowed_merge_methods             = local.branch_protection_preset.allowed_merge_methods
+    }
+
+    # Only emit a required_status_checks rule when the repo declares CI contexts.
     dynamic "required_status_checks" {
-      for_each = length(each.value.status_check_contexts) > 0 ? [1] : []
+      for_each = length(each.value.branch_protection.status_check_contexts) > 0 ? [1] : []
       content {
         dynamic "required_check" {
-          for_each = each.value.status_check_contexts
+          for_each = each.value.branch_protection.status_check_contexts
           content {
-            context = required_check.value
+            context        = required_check.value
             # terraform.tfvars 経由で注入された値を属性参照。
-            integration_id = each.value.status_check_integration_id
+            integration_id = each.value.branch_protection.status_check_integration_id
           }
         }
+        strict_required_status_checks_policy = local.branch_protection_preset.strict_required_status_checks_policy
+        do_not_enforce_on_create             = local.branch_protection_preset.do_not_enforce_on_create
       }
     }
   }

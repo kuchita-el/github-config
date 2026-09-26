@@ -4,13 +4,13 @@
 
 - **観点 #**: 5
 - **重大度**: suggestion
-- **対象**: `integration_id = 15368` の直書き（2箇所）
+- **対象**: `required_check` の `integration_id = 15368` の直書き
 - **指摘文言の主旨**: GitHub Actions の App ID（15368）が resource 内に直書きされている。`terraform.tfvars` の `status_check_integration_id` で既に同値を宣言しているように、locals（対応リソースの .tf ファイル内）または `variables.tf` に抽出すべき。
 
 ## 陰性ケース (`negative.tf.example`)
 
 - 期待出力: 「観点 5: ✅」（指摘なし）
-- 理由: `15368` を `terraform.tfvars` で定義し、resource では `each.value.status_check_integration_id` で属性参照している。
+- 理由: `15368` を `terraform.tfvars` で定義し、resource では `each.value.branch_protection.status_check_integration_id` で属性参照している。
 
 ## 観点間の境界（AC5 重複抑止）
 

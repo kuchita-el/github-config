@@ -1,12 +1,18 @@
 # Fixture (positive): GitHub Actions App ID（15368）を resource 内に直書き。
 # terraform.tfvars の status_check_integration_id で宣言している値が resource 内に侵入。
 # 期待: 観点 5 が suggestion で発火。
+#
+# PR の内容: branch_protection.tf の Ruleset で、required_check の integration_id を
+# tfvars の値ではなくリテラルで与える（locals の branch_protection_preset と variables.tf / terraform.tfvars は main のまま）。
 
-resource "github_repository_ruleset" "branch_protection_gachanuma" {
-  name        = "main protection"
-  repository  = "gachanuma"
-  target      = "branch"
-  enforcement = "active"
+# --- branch_protection.tf（PR 後、resource） ---
+resource "github_repository_ruleset" "branch_protection" {
+  for_each = var.repositories
+
+  name        = local.branch_protection_preset.name
+  repository  = each.key
+  target      = local.branch_protection_preset.target
+  enforcement = local.branch_protection_preset.enforcement
 
   conditions {
     ref_name {
@@ -16,22 +22,37 @@ resource "github_repository_ruleset" "branch_protection_gachanuma" {
   }
 
   rules {
-    creation = true
+    creation            = local.branch_protection_preset.creation
+    deletion            = local.branch_protection_preset.deletion
+    non_fast_forward    = local.branch_protection_preset.non_fast_forward
+    required_signatures = local.branch_protection_preset.required_signatures
 
-    required_status_checks {
-      required_check {
-        context        = "lint"
-        # NOTE: GitHub Actions の App ID をリテラル直書きしている。
-        # locals（対応リソースの .tf ファイル内）または variables.tf に抽出すべき
-        # （例: var.github_actions_app_id）。
-        integration_id = 15368
+    pull_request {
+      required_approving_review_count   = local.branch_protection_preset.required_approving_review_count
+      dismiss_stale_reviews_on_push     = local.branch_protection_preset.dismiss_stale_reviews_on_push
+      require_code_owner_review         = local.branch_protection_preset.require_code_owner_review
+      require_last_push_approval        = local.branch_protection_preset.require_last_push_approval
+      required_review_thread_resolution = local.branch_protection_preset.required_review_thread_resolution
+      allowed_merge_methods             = local.branch_protection_preset.allowed_merge_methods
+    }
+
+    # Only emit a required_status_checks rule when the repo declares CI contexts.
+    dynamic "required_status_checks" {
+      for_each = length(each.value.branch_protection.status_check_contexts) > 0 ? [1] : []
+      content {
+        dynamic "required_check" {
+          for_each = each.value.branch_protection.status_check_contexts
+          content {
+            context        = required_check.value
+            # NOTE: GitHub Actions の App ID をリテラル直書きしている。
+            # locals（対応リソースの .tf ファイル内）または variables.tf に抽出すべき
+            # （現行は terraform.tfvars の status_check_integration_id から参照している）。
+            integration_id = 15368
+          }
+        }
+        strict_required_status_checks_policy = local.branch_protection_preset.strict_required_status_checks_policy
+        do_not_enforce_on_create             = local.branch_protection_preset.do_not_enforce_on_create
       }
-      required_check {
-        context        = "build"
-        integration_id = 15368
-      }
-      strict_required_status_checks_policy = true
-      do_not_enforce_on_create             = false
     }
   }
 }

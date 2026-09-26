@@ -17,7 +17,7 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 | 2 | `variable` の `validation` 不足 | warning | 入力値の暗黙の制約に反する入力が plan 前に拒否される | [`variables.tf`](../../../variables.tf) の `repositories` 変数の `validation` 群 |
 | 3 | `lifecycle.ignore_changes` 網羅性 | blocker | 上書きの復旧コストが大きい属性が、GitHub 側の変更を巻き戻さない保護の下にある | [ADR 0001](../../adr/0001-repository-resource-structure.md) §3 / [`repository.tf`](../../../repository.tf) の `github_repository.this` |
 | 4 | `for_each` vs `count` | warning | 固有の識別子を持つ要素のインスタンスが識別子で追跡される。`count = 1` は許容 | [`branch_protection.tf`](../../../branch_protection.tf) の `github_repository_ruleset.branch_protection` |
-| 5 | ハードコード値の抽出 | suggestion | Terraform 固有の定数の宣言場所が定まり、resource 本体に散らばらない | [`terraform.tfvars`](../../../terraform.tfvars) の `status_check_integration_id` |
+| 5 | ハードコード値の抽出 | suggestion | Terraform 固有の定数の宣言場所が定まり、リソース定義の本体に散らばらない | [`terraform.tfvars`](../../../terraform.tfvars) の `status_check_integration_id` |
 | 6 | preset 上書き経路の一貫性 | blocker | 未指定が揃えた値を消さない、揃えた値の正の置き場所が一つ、per-repo の逸脱は ADR が認めた経路だけ、必須の宣言を省略できない、構造は現行の構造方針 ADR に従う | [ADR 0004](../../adr/0004-terraform-module-structure-policy.md) 決定 §3〜§7（各 ADR のステータス節で置き換え関係を確認）/ [`/README.md`](../../../README.md)「例外台帳」節 / [`repository.tf`](../../../repository.tf)・[`branch_protection.tf`](../../../branch_protection.tf) |
 | 7 | App 権限境界違反 | blocker | Terraform が要する API 権限が App に付与済みの権限に収まる | [`/CLAUDE.md`](../../../CLAUDE.md) §3 / [`README.md`](../../../README.md)「設計思想」節・「GitHub App の作成・インストール・秘密鍵の生成」節 |
 | 8 | plan-time リスク | warning / blocker | 意図しない破棄・再作成を伴って適用されない。`import.tf` 連携時は blocker | [`/CLAUDE.md`](../../../CLAUDE.md) §2 / [`README.md`](../../../README.md)「既存リポの取り込み（import）」節 |

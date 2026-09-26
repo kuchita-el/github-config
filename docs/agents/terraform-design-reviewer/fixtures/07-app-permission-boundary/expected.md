@@ -6,7 +6,7 @@
 
 - **観点 #**: 7
 - **重大度**: blocker
-- **対象**: `github_actions_secret.deploy_token`
+- **対象**: `github_actions_secret.actions_secrets`
 - **指摘文言の主旨**: `github_actions_secret` は本リポの App 権限境界外（必要権限: Actions: Secrets RW）。本リポは Administration RW + Metadata R のみを許可している。本 PR からは本リソースを削除するか、App 権限拡張を別 Issue で提案する。
 
 ## 陽性ケース 2 (`positive-file.tf.example`)

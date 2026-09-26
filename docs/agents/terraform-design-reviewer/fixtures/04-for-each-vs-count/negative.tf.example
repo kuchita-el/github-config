@@ -1,14 +1,18 @@
-# Fixture (negative): for_each = local.branch_protection。
+# Fixture (negative): for_each でリポ名をキーに展開する。
 # 既存 branch_protection.tf と同じく、リポ名をキーに展開するパターン。
 # 期待: 観点 4 は発火しない。
+#
+# PR の内容: branch_protection.tf の Ruleset を現行の形で定義する
+# （locals の branch_protection_preset と variables.tf / terraform.tfvars は main のまま）。
 
+# --- branch_protection.tf（PR 後、resource） ---
 resource "github_repository_ruleset" "branch_protection" {
-  for_each = local.branch_protection
+  for_each = var.repositories
 
-  name        = each.value.name
+  name        = local.branch_protection_preset.name
   repository  = each.key
-  target      = each.value.target
-  enforcement = each.value.enforcement
+  target      = local.branch_protection_preset.target
+  enforcement = local.branch_protection_preset.enforcement
 
   conditions {
     ref_name {
@@ -18,6 +22,7 @@ resource "github_repository_ruleset" "branch_protection" {
   }
 
   rules {
-    creation = each.value.creation
+    creation = local.branch_protection_preset.creation
+    # ...（main と同じ rules は省略）...
   }
 }

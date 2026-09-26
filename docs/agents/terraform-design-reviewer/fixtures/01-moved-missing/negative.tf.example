@@ -1,13 +1,25 @@
 # Fixture (negative): for_each キー変更があり moved ブロックも追加済み。
+# 元: branch_protection.tf の resource "github_repository_ruleset" "branch_protection"
 # 期待: 観点 1 は発火しない。
+#
+# 差分イメージ（before → after）:
+#   before: for_each = { for repo, cfg in var.repositories : "${var.github_owner}/${repo}" => cfg }
+#           （キーは "<owner>/<repo>"。過去の実装が owner 付きのキーで展開していた想定）
+#   after:  for_each = var.repositories
+#           （キーはリポ名。ADR 0004 §3 の基本パターンへ揃える）
+#   repository = split("/", each.key)[1]  →  repository = each.key
+# state 上の既存インスタンスのアドレスは ["kuchita-el/<repo>"]。
+# 下記以外の既存ファイル（locals の branch_protection_preset、variables.tf / terraform.tfvars）は main のまま。
 
+# --- branch_protection.tf（PR 後、resource） ---
 resource "github_repository_ruleset" "branch_protection" {
-  for_each = local.branch_protection_v2_keyed
+  # キースキーマが「owner/リポ名」からリポ名に変わった。
+  for_each = var.repositories
 
-  name        = each.value.name
-  repository  = each.value.repository
-  target      = each.value.target
-  enforcement = each.value.enforcement
+  name        = local.branch_protection_preset.name
+  repository  = each.key
+  target      = local.branch_protection_preset.target
+  enforcement = local.branch_protection_preset.enforcement
 
   conditions {
     ref_name {
@@ -17,27 +29,28 @@ resource "github_repository_ruleset" "branch_protection" {
   }
 
   rules {
-    creation = each.value.creation
+    creation = local.branch_protection_preset.creation
+    # ...（main と同じ rules は省略）...
   }
 }
 
 # キースキーマ変更に対応する moved ブロック。destroy/recreate を回避する。
 moved {
-  from = github_repository_ruleset.branch_protection["gachanuma"]
-  to   = github_repository_ruleset.branch_protection["gachanuma:main"]
+  from = github_repository_ruleset.branch_protection["kuchita-el/gachanuma"]
+  to   = github_repository_ruleset.branch_protection["gachanuma"]
 }
 
 moved {
-  from = github_repository_ruleset.branch_protection["github-config"]
-  to   = github_repository_ruleset.branch_protection["github-config:main"]
+  from = github_repository_ruleset.branch_protection["kuchita-el/github-config"]
+  to   = github_repository_ruleset.branch_protection["github-config"]
 }
 
 moved {
-  from = github_repository_ruleset.branch_protection["claude-shared-skills"]
-  to   = github_repository_ruleset.branch_protection["claude-shared-skills:main"]
+  from = github_repository_ruleset.branch_protection["kuchita-el/claude-shared-skills"]
+  to   = github_repository_ruleset.branch_protection["claude-shared-skills"]
 }
 
 moved {
-  from = github_repository_ruleset.branch_protection["dependabot-triage-action"]
-  to   = github_repository_ruleset.branch_protection["dependabot-triage-action:main"]
+  from = github_repository_ruleset.branch_protection["kuchita-el/dependabot-triage-action"]
+  to   = github_repository_ruleset.branch_protection["dependabot-triage-action"]
 }

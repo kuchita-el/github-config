@@ -1,20 +1,29 @@
-# Fixture (境界・陰性): count = var.enable ? 1 : 0 の条件付き生成。
+# Fixture (境界・陰性): count = <条件> ? 1 : 0 の条件付き生成。
 # 観点 4 の境界条件「count = 1 は指摘しない」。
 # 期待: 観点 4 は発火しない。
+#
+# PR の内容: 本リポ（github-config）自身にだけ、HCP 上で state を持つ IaC リポとして
+# 追加のブランチ保護を置けるようにする。有効化は全リポ共通値のフラグで切り替える
+# （他の既存ファイルは main のまま）。
 
-variable "enable_extra_protection" {
-  type    = bool
-  default = false
+# --- branch_protection.tf（PR 後、変更部分） ---
+locals {
+  branch_protection_preset = {
+    # ...（main と同じ属性は省略）...
+
+    # PR で追加: 本リポ自身への追加保護を有効にするか。
+    self_extra_protection = false
+  }
 }
 
-resource "github_repository_ruleset" "extra" {
+resource "github_repository_ruleset" "branch_protection_self" {
   # 単一インスタンスの条件付き生成。慣用句として許容。
-  count = var.enable_extra_protection ? 1 : 0
+  count = local.branch_protection_preset.self_extra_protection ? 1 : 0
 
-  name        = "extra protection"
-  repository  = "gachanuma"
-  target      = "branch"
-  enforcement = "active"
+  name        = "${local.branch_protection_preset.name} (self)"
+  repository  = "github-config"
+  target      = local.branch_protection_preset.target
+  enforcement = local.branch_protection_preset.enforcement
 
   conditions {
     ref_name {
@@ -24,6 +33,6 @@ resource "github_repository_ruleset" "extra" {
   }
 
   rules {
-    creation = true
+    creation = local.branch_protection_preset.creation
   }
 }

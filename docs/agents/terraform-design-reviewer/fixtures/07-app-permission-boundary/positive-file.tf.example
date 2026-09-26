@@ -2,12 +2,25 @@
 # App スコープ（Administration RW + Metadata R）の範囲外。
 # 必要権限: Contents RW（README.md は意図的に Contents を付与していない）
 # 期待: 観点 7 が blocker で発火。
+#
+# PR の内容: 全管理リポに同じ CODEOWNERS を配る設定種別を追加する。他の既存ファイルは main のまま。
+
+# --- codeowners.tf（PR で新規追加） ---
+locals {
+  codeowners_preset = {
+    file                = ".github/CODEOWNERS"
+    content             = "* @kuchita-el\n"
+    commit_message      = "Add CODEOWNERS"
+    overwrite_on_create = true
+  }
+}
 
 resource "github_repository_file" "codeowners" {
-  repository          = "gachanuma"
-  file                = ".github/CODEOWNERS"
-  content             = "* @kuchita-el\n"
-  branch              = "main"
-  commit_message      = "Add CODEOWNERS"
-  overwrite_on_create = true
+  for_each = var.repositories
+
+  repository          = each.key
+  file                = local.codeowners_preset.file
+  content             = local.codeowners_preset.content
+  commit_message      = local.codeowners_preset.commit_message
+  overwrite_on_create = local.codeowners_preset.overwrite_on_create
 }
