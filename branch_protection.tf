@@ -57,9 +57,19 @@ locals {
     # strict_required_status_checks_policy is per-profile → profile defaults above).
     do_not_enforce_on_create = false
   }
+
+  # ---------------------------------------------------------------------------
+  # Branch-protection targets: public repositories only, since the GitHub Free
+  # plan allows Rulesets on public repositories only (ADR 0004 §6). Profile is
+  # not used to narrow this target set; every profile still gets a branch
+  # protection ruleset once it is public.
+  # ---------------------------------------------------------------------------
+  branch_protection_targets = {
+    for repo, cfg in var.repositories : repo => cfg if cfg.visibility == "public"
+  }
 }
 
-# Branch protection (Repository Ruleset) for every managed repository.
+# Branch protection (Repository Ruleset) for every public managed repository.
 # One ruleset per repo, expanded with for_each keyed by repository name so that
 # adding/removing a repo never recreates the others.
 # All-repository common values come from local.branch_protection_preset;
@@ -67,7 +77,7 @@ locals {
 # var.repositories[<repo>].profile; repo-specific values (status check contexts / integration ID) come from
 # var.repositories[<repo>].branch_protection (ADR 0004 §4・§5).
 resource "github_repository_ruleset" "branch_protection" {
-  for_each = var.repositories
+  for_each = local.branch_protection_targets
 
   name        = local.branch_protection_preset.name
   repository  = each.key

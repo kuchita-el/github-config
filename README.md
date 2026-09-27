@@ -19,7 +19,8 @@ terraform.tfvars (管理対象リポ + リポ固有値)
         ▼
 branch_protection.tf  全リポ共通値 local.branch_protection_preset と
                       リポ固有値 repositories.<k>.branch_protection.* を直接参照
-                      github_repository_ruleset を for_each でリポ単位に展開
+                      github_repository_ruleset を local.branch_protection_targets
+                      （visibility=public で絞込）で for_each 展開
 repository.tf         全リポ共通値 local.repository_preset と
                       リポ固有値 repositories.<k>.repository.* を直接参照
                       github_repository / github_branch_default を for_each で
@@ -43,7 +44,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `terraform.tf` | Terraform / provider バージョン固定、HCP `cloud {}` バックエンド |
 | `providers.tf` | GitHub provider（owner + 空 `app_auth {}`。App 認証情報は環境変数） |
 | `variables.tf` | `github_owner`、`repositories`（管理対象 + リポ固有値）の型定義 |
-| `branch_protection.tf` | `local.branch_protection_profile_defaults`（類型決定値、[ADR 0007](docs/adr/0007-strict-status-checks-by-profile.md)）+ `local.branch_protection_preset`（全リポ共通値）+ Ruleset リソース（`for_each` 展開）。類型決定値は `repositories.<k>.profile` をキーに、リポ固有値は `repositories.<k>.branch_protection.*` を直接参照 |
+| `branch_protection.tf` | `local.branch_protection_profile_defaults`（類型決定値、[ADR 0007](docs/adr/0007-strict-status-checks-by-profile.md)）+ `local.branch_protection_preset`（全リポ共通値）+ `local.branch_protection_targets`（visibility=public で絞込、ADR 0004 §6）+ Ruleset リソース（`for_each` 展開）。類型決定値は `repositories.<k>.profile` をキーに、リポ固有値は `repositories.<k>.branch_protection.*` を直接参照 |
 | `repository.tf` | `local.repository_preset`（全リポ共通値。既定ブランチ名を含む）+ `github_repository` リソース・`github_branch_default` リソース（いずれも `for_each` 展開）。リポ固有値は `repositories.<k>.repository.*` を直接参照 + `lifecycle.ignore_changes` |
 | `actions_permissions.tf` | `local.actions_permissions_preset`（全リポ共通値。類型決定値なし）+ `github_actions_repository_permissions` リソース・`github_workflow_repository_permissions` リソース（いずれも `for_each` 展開）。リポ固有値（`patterns_allowed`）は `repositories.<k>.actions_permissions.*` を直接参照 |
 | `tag_protection.tf` | `local.tag_protection_profile_defaults`（類型決定値、[ADR 0009](docs/adr/0009-tag-protection.md)）+ `local.tag_protection_preset`（全リポ共通値）+ `local.tag_protection_targets`（visibility=public で絞込、ADR 0004 §6）+ Ruleset リソース（`for_each` 展開）。リポ固有値は無し（`repositories.<k>.tag_protection` は導入していない） |
@@ -274,8 +275,6 @@ Agent(
 3. 特定のリポで類型決定値・全リポ共通値から外す必要がある属性は、下記「例外台帳」へ登録する（登録と per-repo のフィールドの追加を同じ変更で行う）。
 4. visibility で適用範囲を絞る場合は、適用対象の集合 `local.<concern>_targets` を置く（ADR 0004 §6）。
 5. 既存リポに既存の設定がある場合は **import → plan no-op → apply** の順（上記「既存リポの取り込み（import）」。実値の食い違いは ADR 0004 §4）。
-
-> 現行の `branch_protection.tf` は Ruleset を visibility によらず全管理対象リポに適用しており、ADR 0004 §6 の適用対象の絞り込み（`local.<concern>_targets`）はまだ無い。絞り込みと切り替えの手順が入るまで、管理対象リポの visibility を切り替えない（private にすると、private の Free リポに Ruleset が state 上残る）。
 
 ---
 
