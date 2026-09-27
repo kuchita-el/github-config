@@ -152,3 +152,80 @@ PR #31 マージ後の Claude Code セッションで `subagent_type: "terraform
 ## 結論
 
 #79 の再試験で、既存 22 ケース、ADR 0004 §3〜§7 の8つの規約領域の違反・準拠 12 ケース（準拠は一部が複数領域を兼ねる）、現行コード（AC4）のすべてで、対象観点の判定が期待と一致した（**代理試験**、各1回）。実機 `terraform-design-reviewer` 起動による補強は観点 1 陽性 1 ケース（#20 時点）に留まる。
+
+## 観点9 の実測記録（#103）
+
+- **実施日**: 2026-09-28
+- **版**: Terraform v1.15.6、provider `integrations/github` v6.12.1（`.terraform.lock.hcl` と一致）
+- **手順**: worktree ルートで `mise exec -- terraform init -backend=false -plugin-dir=/home/kuchita/Development/github-config/.terraform/providers -lockfile=readonly -input=false` を実行し（追跡ファイル・`.terraform.lock.hcl` に変更なし、`.terraform/` に `terraform.tfstate` なしを確認）、以降 `mise exec -- terraform validate -no-color`（人間向け）・`mise exec -- terraform validate -json`（JSON）を、各ケースにつき一時編集 → 実行 → 記録 → `git restore` / 一時ファイル削除の順で単独コマンドとして実行した。
+- **現行コード（一時編集なし）での validate**: `Success! The configuration is valid.`（警告なし）。
+
+### 各ケースの実測
+
+- **陽性（属性）**: `repository.tf` の `github_repository.this` に `vulnerability_alerts = true` を1行追加（fmt 後 82 行目）。`Warning: Argument is deprecated`、`on repository.tf line 82`、内容は「`github_repository_vulnerability_alerts` resource へ移行せよ」。`positive-attribute.diff`／`validate-positive-attribute.txt`。
+- **陰性**: 同じ位置に `allow_update_branch = false`（provider docs に非推奨の記載なし）を追加。警告なし（`Success! The configuration is valid.`）。`negative.diff`／`validate-negative.txt`。
+- **境界**: `repository.tf` に `vulnerability_alerts = true`（PR 前からの使用という前提、diff には含めない）を置いた状態で、`variables.tf` の `variable "github_owner"` の `description` を1行変更。`git diff -- variables.tf` を `boundary-preexisting.diff` に保存。validate は `repository.tf line 82` を警告するが、この行は `variables.tf` の diff の追加行に無い。`validate-boundary-preexisting.txt`。
+- **陽性（resource、J3）**: worktree ルートに一時ファイル `deployment_branch_policy.tf` を作り、`resource "github_repository_deployment_branch_policy" "sandbox"`（`repository`・`environment_name`・`name` をリテラルで指定）を配置。`Warning: Deprecated Resource`、`on deployment_branch_policy.tf line 1`、内容は「`github_repository_environment_deployment_policy` resource が代替」。`positive-resource.diff`（`git diff --no-index /dev/null deployment_branch_policy.tf`、終了コード1は正常）／`validate-positive-resource.txt`。
+- **組み合わせ（J7）**: `repository.tf` に `vulnerability_alerts = true`（境界と同じ前提）を置いた状態で、worktree ルートに一時ファイル `sandbox_repository.tf` を作り、`github_repository.sandbox`（`github_repository.this` と同じ `lifecycle { ignore_changes = [visibility, archived] }`）に `has_downloads = true`（新規使用）を追加。`git diff --no-index /dev/null sandbox_repository.tf` を `mixed-preexisting-and-new.diff` に保存（前提コメント付き、validate 出力の形式に非依存）。
+
+### J3 の結果: 成立
+
+resource 単位の非推奨（`github_repository_deployment_branch_policy`）でも `terraform validate` は `Warning: Deprecated Resource` を、対象アドレス・ファイル・行付きで出す。属性単位の警告（`Warning: Argument is deprecated`）と見出しの文言は異なるが、いずれも位置付きの警告として検出できる。決定6（観点9の対象を属性・resourceの両方とする）と決定7（情報源を validate 出力に限る）は両立する。
+
+### J7 の結果: 不成立（集約される）
+
+組み合わせケースの人間向け出力（`terraform validate -no-color`）は次のとおりで、2件目が集約され「(and one more similar warning elsewhere)」に畳まれた（先頭は「ファイル名、次に位置」の順で `repository.tf`〔fmt 後 82 行目〕が `sandbox_repository.tf`〔6 行目〕より先になり、新規使用〔`sandbox_repository.tf`〕側が畳まれた1件になる）:
+
+```
+Warning: Argument is deprecated
+
+  with github_repository.this,
+  on repository.tf line 82, in resource "github_repository" "this":
+  82:   vulnerability_alerts = true
+
+Use the github_repository_vulnerability_alerts resource instead. This field
+will be removed in a future version.
+
+(and one more similar warning elsewhere)
+Success! The configuration is valid, but there were some validation warnings
+as shown above.
+```
+
+同じ状態で `terraform validate -json` を実行すると、集約されず2件とも個別にファイル名・行が付く:
+
+```json
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 2,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "This attribute is no longer in use, but it hasn't been removed yet. It will be removed in a future version. See https://github.com/orgs/community/discussions/102145#discussioncomment-8351756",
+      "address": "github_repository.sandbox",
+      "range": {
+        "filename": "sandbox_repository.tf",
+        "start": { "line": 6, "column": 19, "byte": 110 },
+        "end": { "line": 6, "column": 23, "byte": 114 }
+      }
+    },
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "Use the github_repository_vulnerability_alerts resource instead. This field will be removed in a future version.",
+      "address": "github_repository.this",
+      "range": {
+        "filename": "repository.tf",
+        "start": { "line": 82, "column": 26, "byte": 4027 },
+        "end": { "line": 82, "column": 30, "byte": 4031 }
+      }
+    }
+  ]
+}
+```
+
+（`snippet` フィールドは記録を簡潔にするため省略。両診断とも `filename`・`start.line` を個別に持つことは確認済み。）
+
+J7 が仮定と異なった（人間向け出力が集約する）ため、Task 5a はここで停止する。`validate-mixed-preexisting-and-new.txt` は未作成（4. のユーザー回答後に選ばれた形で作る）。`mixed-preexisting-and-new.diff` は形式非依存のため保存済み。

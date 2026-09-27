@@ -1,0 +1,13 @@
+# PR の内容: deployment_branch_policy.tf を新規追加し、環境のデプロイブランチポリシーを設定する。
+
+diff --git a/deployment_branch_policy.tf b/deployment_branch_policy.tf
+new file mode 100644
+index 0000000..960521c
+--- /dev/null
++++ b/deployment_branch_policy.tf
+@@ -0,0 +1,5 @@
++resource "github_repository_deployment_branch_policy" "sandbox" {
++  repository       = "sandbox-repo"
++  environment_name = "production"
++  name             = "release/*"
++}

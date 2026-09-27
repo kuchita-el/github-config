@@ -1,0 +1,10 @@
+Warning: Deprecated Resource
+
+  with github_repository_deployment_branch_policy.sandbox,
+  on deployment_branch_policy.tf line 1, in resource "github_repository_deployment_branch_policy" "sandbox":
+   1: resource "github_repository_deployment_branch_policy" "sandbox" {
+
+This resource is deprecated in favour of the
+github_repository_environment_deployment_policy resource.
+Success! The configuration is valid, but there were some validation warnings
+as shown above.

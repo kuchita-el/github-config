@@ -1,0 +1,10 @@
+Warning: Argument is deprecated
+
+  with github_repository.this,
+  on repository.tf line 82, in resource "github_repository" "this":
+  82:   vulnerability_alerts = true
+
+Use the github_repository_vulnerability_alerts resource instead. This field
+will be removed in a future version.
+Success! The configuration is valid, but there were some validation warnings
+as shown above.

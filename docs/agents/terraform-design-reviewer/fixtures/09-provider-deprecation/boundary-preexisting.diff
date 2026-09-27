@@ -1,0 +1,16 @@
+# PR の内容: variables.tf の variable "github_owner" の description を1行変更する。
+# 前提: repository.tf は PR 前から非推奨属性を使っている（本 PR の差分ではない）。評価では worktree の
+# repository.tf の代わりにこの前提を扱う。
+
+diff --git a/variables.tf b/variables.tf
+index 2623c14..08c158d 100644
+--- a/variables.tf
++++ b/variables.tf
+@@ -1,6 +1,6 @@
+ variable "github_owner" {
+   type        = string
+-  description = "管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名。"
++  description = "管理対象リポジトリが属する GitHub アカウント（owner）。例: 自分のユーザー名（Organization 名は非対応）。"
+ }
+
+ variable "repositories" {
