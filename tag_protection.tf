@@ -1,13 +1,14 @@
 locals {
   # ---------------------------------------------------------------------------
-  # Tag-protection profile defaults: per-profile enforcement (ADR 0004 §4・§7,
-  # ADR 0009), keyed by every profile identifier with the same attribute set in
-  # each row. Only "distribution" repos ship version tags that outside users
-  # reference as refs (`uses: owner/repo@vX.Y.Z` 等); "infra" / "app" /
-  # "local_config" repos have no such external reference surface today, so
-  # protection starts disabled for them (ADR 0009 決定 §1). They cannot be
-  # changed per repository; deviating a repository requires registering the
-  # attribute in the README exception ledger (ADR 0004 §4).
+  # Tag-protection profile defaults: per-profile enforcement
+  # (terraform-structure.md §4・§7, ADR 0009), keyed by every profile identifier
+  # with the same attribute set in each row. Only "distribution" repos ship
+  # version tags that outside users reference as refs (`uses: owner/repo@vX.Y.Z`
+  # 等); "infra" / "app" / "local_config" repos have no such external reference
+  # surface today, so protection starts disabled for them (ADR 0009 決定 §1). They
+  # cannot be changed per repository; deviating a repository requires
+  # registering the attribute in the exception ledger (terraform-structure.md
+  # §4).
   # ---------------------------------------------------------------------------
   tag_protection_profile_defaults = {
     distribution = {
@@ -25,15 +26,15 @@ locals {
   }
 
   # ---------------------------------------------------------------------------
-  # Tag-protection preset: all-repository common values (ADR 0004 §4, ADR 0009
-  # 決定 §1・§2). Protects release-specific version tags (vX.Y.Z) only; floating
-  # tags such as v1 / v1.1 are intentionally excluded because
+  # Tag-protection preset: all-repository common values (terraform-structure.md
+  # §4, ADR 0009 決定 §1・§2). Protects release-specific version tags (vX.Y.Z)
+  # only; floating tags such as v1 / v1.1 are intentionally excluded because
   # dependabot-triage-action's release.yml force-moves them per GitHub's
-  # documented immutable-release convention (ADR 0009 コンテキスト). Creation is
-  # left unrestricted (no `creation` rule declared) and no bypass actor is
-  # granted. They cannot be changed per repository; deviating a repository
-  # requires registering the attribute in the README exception ledger
-  # (ADR 0004 §4).
+  # documented immutable-release convention (ADR 0009 コンテキスト). Creation is left
+  # unrestricted (no `creation` rule declared) and no bypass actor is granted.
+  # They cannot be changed per repository; deviating a repository requires
+  # registering the attribute in the exception ledger (terraform-structure.md
+  # §4).
   # ---------------------------------------------------------------------------
   tag_protection_preset = {
     name   = "tag protection"
@@ -67,9 +68,9 @@ locals {
 # adding/removing a repo never recreates the others.
 # All-repository common values come from local.tag_protection_preset;
 # per-profile enforcement comes from local.tag_protection_profile_defaults keyed
-# by var.repositories[<repo>].profile (ADR 0004 §4・§7, ADR 0009). No repo-
-# specific values exist for this concern, so `repositories.<k>.tag_protection`
-# is not introduced (ADR 0009 代替案).
+# by var.repositories[<repo>].profile (terraform-structure.md §4・§7, ADR 0009).
+# No repo-specific values exist for this concern, so
+# `repositories.<k>.tag_protection` is not introduced (ADR 0009 代替案).
 resource "github_repository_ruleset" "tag_protection" {
   for_each = local.tag_protection_targets
 

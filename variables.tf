@@ -7,7 +7,7 @@ variable "repositories" {
   description = <<-EOT
     管理対象リポジトリ。キーはリポジトリ名。
 
-    各エントリにはリポ固有値だけを書く（ADR 0004 §4・§5）。直下には visibility と
+    各エントリにはリポ固有値だけを書く（terraform-structure.md §4・§5）。直下には visibility と
     profile（いずれも必須、既定値なし）だけを置き、それ以外のリポ固有値は設定種別名の
     キー（repository / branch_protection / actions_permissions）の下に入れ子にする。設定種別のキーは、その
     設定種別にリポ固有値があるリポだけが書き、省略すると値の無い状態（null / 空リスト）になる。
@@ -18,8 +18,9 @@ variable "repositories" {
     ここでは変えられない。類型決定値は各設定種別ファイル冒頭の
     local.<concern>_profile_defaults（branch_protection.tf の
     branch_protection_profile_defaults）に置き、各リポの profile（類型プロファイル、
-    ADR 0004 §7）で引く。これもここでは変えられない。特定のリポで全リポ共通値・
-    類型決定値から外すには、README の「例外台帳」への登録を要する。
+    terraform-structure.md §7）で引く。これもここでは変えられない。特定のリポで
+    全リポ共通値・類型決定値から外すには、terraform-structure.md §4 の例外台帳への
+    登録を要する。
   EOT
 
   type = map(object({
@@ -28,7 +29,7 @@ variable "repositories" {
     # default を持たせない。
     visibility = string
 
-    # リポジトリの類型プロファイル（必須、ADR 0004 §7）。判定基準は「リポの変更がどこへ届くか」。
+    # リポジトリの類型プロファイル（必須、terraform-structure.md §7）。判定基準は「リポの変更がどこへ届くか」。
     # 既定値は持たせない（付け忘れを構造的に防ぐ。visibility と同じ扱い）。
     # 類型決定値の表（local.<concern>_profile_defaults）を引くキーになる。
     profile = string
@@ -79,12 +80,12 @@ variable "repositories" {
     error_message = "branch_protection.status_check_integration_id is required when branch_protection.status_check_contexts is non-empty."
   }
 
-  # profile は ADR 0004 §7 が定める4つの識別子以外を拒否する。
+  # profile は terraform-structure.md §7 が定める4つの識別子以外を拒否する。
   validation {
     condition = alltrue([
       for r in values(var.repositories) :
       contains(["distribution", "infra", "app", "local_config"], r.profile)
     ])
-    error_message = "profile must be one of: distribution, infra, app, local_config (ADR 0004 §7)."
+    error_message = "profile must be one of: distribution, infra, app, local_config (docs/design/terraform-structure.md §7)."
   }
 }
