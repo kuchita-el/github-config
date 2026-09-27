@@ -3,7 +3,7 @@
 # 期待: 観点 2 は発火しない。
 #
 # PR の内容: branch_protection に per-repo の enforcement / allowed_merge_methods フィールドを追加する
-# （使用リポの tfvars 宣言と、resource 側の null フォールバック参照は本フィクスチャでは省略）。
+# （per-repo の値を指定するリポの tfvars 宣言と、resource 側の null フォールバック参照は本フィクスチャでは省略）。
 # 下記以外の既存ファイルは main のまま。
 
 # --- variables.tf（PR 後） ---

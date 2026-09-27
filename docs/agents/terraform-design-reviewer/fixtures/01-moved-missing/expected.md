@@ -15,3 +15,10 @@ reviewer は観点 1 を発火させない:
 
 - 期待出力: 「観点 1: ✅」（指摘なし）
 - 理由: `for_each` キー変更ごとに `moved` ブロックが対応して追加されている。
+
+## 期待する判定根拠
+
+発火するケースの指摘は、観点 1 の「判定の根拠」に挙げた次の一般的な出典に基づく（リポジトリ固有の規約文書を根拠にしない）。
+
+- Terraform 公式ドキュメント「Refactoring」: <https://developer.hashicorp.com/terraform/language/modules/develop/refactoring>
+- Terraform 公式ドキュメント `moved` ブロックの解説: <https://developer.hashicorp.com/terraform/language/block/moved>
