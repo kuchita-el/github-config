@@ -39,6 +39,15 @@ locals {
     # Default branch of every repository, applied by github_branch_default below
     # (Issue #17). Not the deprecated github_repository.default_branch.
     default_branch = "main"
+
+    # security_and_analysis (Issue #7): secret scanning / push protection only
+    # (advanced_security is out of scope, ADR 0010). The provider docs require
+    # visibility=public (or advanced_security enabled, or an org split license)
+    # to set these to "enabled"; the dynamic block below emits this whole block
+    # only for public repos (ADR 0004 §6), so these values are never sent for a
+    # private repo.
+    secret_scanning_status                 = "enabled"
+    secret_scanning_push_protection_status = "enabled"
   }
 }
 
@@ -83,6 +92,22 @@ resource "github_repository" "this" {
   allow_squash_merge          = local.repository_preset.allow_squash_merge
   squash_merge_commit_title   = local.repository_preset.squash_merge_commit_title
   squash_merge_commit_message = local.repository_preset.squash_merge_commit_message
+
+  # secret_scanning / secret_scanning_push_protection (Issue #7, ADR 0010):
+  # public repos only. The GitHub Free plan cannot enable these on a private
+  # repo (provider docs), so the block itself is omitted for private repos
+  # instead of sending status = "disabled" (ADR 0004 §6, ADR 0010 代替案).
+  dynamic "security_and_analysis" {
+    for_each = each.value.visibility == "public" ? [1] : []
+    content {
+      secret_scanning {
+        status = local.repository_preset.secret_scanning_status
+      }
+      secret_scanning_push_protection {
+        status = local.repository_preset.secret_scanning_push_protection_status
+      }
+    }
+  }
 
   lifecycle {
     # Drift protection: UI/API changes to these attributes do not surface as plan
