@@ -113,7 +113,7 @@ terraform version   # >= 1.6 であること
    - **Metadata: Read**（他権限付与時に自動で必須化される）
    - 他は **No access**。特に **Contents は付与しない**（漏洩時もコード改竄を構造的に遮断）。
 3. App を作成後、**Install App** で自分のアカウントにインストール。
-   - **Only select repositories** を選び、**管理対象リポのみ**（現状 `gachanuma` / `github-config`）を指定。クレデンシャル到達範囲を管理対象セットに一致させる。
+   - **Only select repositories** を選び、`terraform.tfvars` の `repositories` に載せた管理対象リポのみを指定。クレデンシャル到達範囲を管理対象セットに一致させる。新しい管理対象リポを追加したら、この画面でインストールスコープにも同じリポを追加する（CLAUDE.md §3）。
 4. App 設定画面で **App ID** を控える。**Private keys → Generate a private key** で PEM をダウンロードして控える。
 5. インストール画面の URL（`.../installations/<数字>`）等から **Installation ID** を控える。
 

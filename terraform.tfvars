@@ -80,4 +80,48 @@ repositories = {
       patterns_allowed = ["jdx/mise-action@*", "dependabot/fetch-metadata@*"] # ワークフローが使う外部 action
     }
   }
+
+  # work-abstraction: private リポ（#4）。ビジネスワークフローの Web アプリ。
+  #
+  # profile = app（ADR 0004 §7）: 実行アプリケーションのソースを持ち、利用者は ref で参照も
+  # 複製もしない。private のため branch_protection / tag_protection の Ruleset は対象外
+  # （local.<concern>_targets が visibility == "public" のリポだけに絞る、ADR 0004 §6）。
+  "work-abstraction" = {
+    visibility = "private"
+    profile    = "app"
+
+    actions_permissions = {
+      patterns_allowed = ["pnpm/action-setup@*"] # ワークフローが使う外部 action
+    }
+  }
+
+  # budget-baker: private リポ（#4）。予実管理アプリ。
+  #
+  # profile = app（ADR 0004 §7）: 実行アプリケーションのソースを持ち、利用者は ref で参照も
+  # 複製もしない。private のため branch_protection / tag_protection の Ruleset は対象外
+  # （local.<concern>_targets が visibility == "public" のリポだけに絞る、ADR 0004 §6）。
+  "budget-baker" = {
+    visibility = "private"
+    profile    = "app"
+  }
+
+  # cody: private リポ（#4）。オンラインでコードを書く Web アプリ。
+  #
+  # profile = app（ADR 0004 §7）: 実行アプリケーションのソースを持ち、利用者は ref で参照も
+  # 複製もしない。private のため branch_protection / tag_protection の Ruleset は対象外
+  # （local.<concern>_targets が visibility == "public" のリポだけに絞る、ADR 0004 §6）。
+  cody = {
+    visibility = "private"
+    profile    = "app"
+  }
+
+  # coffeeshop: private リポ（#4）。カフェの業務システム。
+  #
+  # profile = app（ADR 0004 §7）: 実行アプリケーションのソースを持ち、利用者は ref で参照も
+  # 複製もしない。private のため branch_protection / tag_protection の Ruleset は対象外
+  # （local.<concern>_targets が visibility == "public" のリポだけに絞る、ADR 0004 §6）。
+  coffeeshop = {
+    visibility = "private"
+    profile    = "app"
+  }
 }
