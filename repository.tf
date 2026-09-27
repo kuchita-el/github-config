@@ -1,10 +1,10 @@
 locals {
   # ---------------------------------------------------------------------------
   # Repository preset: all-repository common values for the repository concern
-  # (github_repository and github_branch_default, ADR 0004 §3・§4), referenced
-  # directly by the resources below. They cannot be
-  # changed per repository; deviating a repository requires registering the
-  # attribute in the README exception ledger (ADR 0004 §4).
+  # (github_repository and github_branch_default, terraform-structure.md §3・§4),
+  # referenced directly by the resources below. They cannot be changed per
+  # repository; deviating a repository requires registering the attribute in the
+  # exception ledger (terraform-structure.md §4).
   # ---------------------------------------------------------------------------
   repository_preset = {
     # Security-axis attributes (Issue #16).
@@ -44,8 +44,8 @@ locals {
     # (advanced_security is out of scope, ADR 0010). The provider docs require
     # visibility=public (or advanced_security enabled, or an org split license)
     # to set these to "enabled"; the dynamic block below emits this whole block
-    # only for public repos (ADR 0004 §6), so these values are never sent for a
-    # private repo.
+    # only for public repos (terraform-structure.md §6), so these values are
+    # never sent for a private repo.
     secret_scanning_status                 = "enabled"
     secret_scanning_push_protection_status = "enabled"
   }
@@ -55,9 +55,10 @@ locals {
 # All-repository common values come from local.repository_preset; repo-specific
 # values (archived / description / homepage_url / topics) come from
 # var.repositories[<repo>].repository
-# (ADR 0004 §4・§5). visibility is a required top-level field of each entry.
+# (terraform-structure.md §4・§5). visibility is a required top-level field of
+# each entry.
 #
-# See: docs/adr/0004-terraform-module-structure-policy.md (§4 value categories, §5 layout)
+# See: docs/design/terraform-structure.md (§4 value categories, §5 layout)
 #      docs/adr/0001-repository-resource-structure.md
 #  - §決定 > 1 (single file, required visibility)
 #  - §決定 > 3 (lifecycle.ignore_changes scope = visibility, archived only)
@@ -96,7 +97,8 @@ resource "github_repository" "this" {
   # secret_scanning / secret_scanning_push_protection (Issue #7, ADR 0010):
   # public repos only. The GitHub Free plan cannot enable these on a private
   # repo (provider docs), so the block itself is omitted for private repos
-  # instead of sending status = "disabled" (ADR 0004 §6, ADR 0010 代替案).
+  # instead of sending status = "disabled" (terraform-structure.md §6, ADR 0010
+  # 代替案).
   dynamic "security_and_analysis" {
     for_each = each.value.visibility == "public" ? [1] : []
     content {

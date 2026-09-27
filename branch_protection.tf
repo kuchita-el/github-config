@@ -1,10 +1,11 @@
 locals {
   # ---------------------------------------------------------------------------
-  # Branch-protection profile defaults: per-profile values (ADR 0004 §4・§7),
-  # keyed by every profile identifier with the same attribute set in each row,
-  # and referenced directly by the resource below via each.value.profile.
-  # They cannot be changed per repository; deviating a repository requires
-  # registering the attribute in the README exception ledger (ADR 0004 §4).
+  # Branch-protection profile defaults: per-profile values
+  # (terraform-structure.md §4・§7), keyed by every profile identifier with the
+  # same attribute set in each row, and referenced directly by the resource
+  # below via each.value.profile. They cannot be changed per repository;
+  # deviating a repository requires registering the attribute in the exception
+  # ledger (terraform-structure.md §4).
   # ---------------------------------------------------------------------------
   branch_protection_profile_defaults = {
     # strict_required_status_checks_policy ("Require branches to be up to date
@@ -26,13 +27,13 @@ locals {
   }
 
   # ---------------------------------------------------------------------------
-  # Branch-protection preset: all-repository common values (ADR 0004 §4),
-  # applied to every managed repository and referenced directly by the
-  # resource below. Values originally mirrored the gachanuma "main protection"
-  # ruleset so existing repos imported to a no-op; allowed_merge_methods now
-  # follows ADR 0005 (squash only). They cannot be changed per repository;
-  # deviating a repository requires registering the attribute in the README
-  # exception ledger (ADR 0004 §4).
+  # Branch-protection preset: all-repository common values
+  # (terraform-structure.md §4), applied to every managed repository and
+  # referenced directly by the resource below. Values originally mirrored the
+  # gachanuma "main protection" ruleset so existing repos imported to a no-op;
+  # allowed_merge_methods now follows ADR 0005 (squash only). They cannot be
+  # changed per repository; deviating a repository requires registering the
+  # attribute in the exception ledger (terraform-structure.md §4).
   # ---------------------------------------------------------------------------
   branch_protection_preset = {
     name        = "main protection"
@@ -75,7 +76,7 @@ locals {
 # All-repository common values come from local.branch_protection_preset;
 # per-profile values come from local.branch_protection_profile_defaults keyed by
 # var.repositories[<repo>].profile; repo-specific values (status check contexts / integration ID) come from
-# var.repositories[<repo>].branch_protection (ADR 0004 §4・§5).
+# var.repositories[<repo>].branch_protection (terraform-structure.md §4・§5).
 resource "github_repository_ruleset" "branch_protection" {
   for_each = local.branch_protection_targets
 
