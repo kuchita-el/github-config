@@ -1,0 +1,9 @@
+# Fixture: GitHub 上に既にある gachanuma の main ブランチ保護の Ruleset（Ruleset ID 16492768）を、
+# import ブロックで github_repository_ruleset.branch_protection["gachanuma"] として state に取り込む PR。
+# 本 PR の変更は下記の import ブロックの追加だけで、下記以外の既存ファイルは main のまま。
+
+# --- import.tf（PR で新規追加） ---
+import {
+  to = github_repository_ruleset.branch_protection["gachanuma"]
+  id = "gachanuma:16492768"
+}

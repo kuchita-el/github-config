@@ -6,7 +6,7 @@
 #   before: for_each = { for repo, cfg in var.repositories : "${var.github_owner}/${repo}" => cfg }
 #           （キーは "<owner>/<repo>"。過去の実装が owner 付きのキーで展開していた想定）
 #   after:  for_each = var.repositories
-#           （キーはリポ名。ADR 0004 §3 の基本パターンへ揃える）
+#           （キーをリポ名にする）
 #   repository = split("/", each.key)[1]  →  repository = each.key
 # state 上の既存インスタンスのアドレスは ["kuchita-el/<repo>"]。
 # 下記以外の既存ファイル（locals の branch_protection_preset、variables.tf / terraform.tfvars）は main のまま。

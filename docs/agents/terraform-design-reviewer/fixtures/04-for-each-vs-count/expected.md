@@ -5,7 +5,7 @@
 - **観点 #**: 4
 - **重大度**: warning
 - **対象**: `github_repository_ruleset.branch_protection` の `count = length(keys(var.repositories))`
-- **指摘文言の主旨**: 要素が固有キー（リポ名）を持つので `for_each = var.repositories` 等のキー指定に変更すべき。`count` ではリストの中間要素削除でインデックス再採番が起き destroy/recreate になる。`branch_protection.tf` の `github_repository_ruleset.branch_protection`（リポ名をキーにした展開）を参照。
+- **指摘文言の主旨**: 要素が固有キー（リポ名）を持つので `for_each = var.repositories` 等のキー指定に変更すべき。`count` ではリストの中間要素削除でインデックス再採番が起き destroy/recreate になる。
 
 ## 陰性ケース (`negative.tf.example`)
 
