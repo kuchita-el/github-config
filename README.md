@@ -65,7 +65,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 
 **TF 管理下の設定は「あるべき状態」を強制する。** GitHub UI で手動変更しても、次回 `terraform plan` で drift として検出され、`apply` で宣言値へ revert される。
 
-- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [設計仕様書](docs/design/terraform-structure.md) §4 の例外台帳に登録した属性だけで、それ以外は類型または全リポ共通の値に従う（設計仕様書 §4）。
+- リポ個別の値は UI で変えず、**`terraform.tfvars` に書く**。書けるのはリポ固有値と [設計仕様書](docs/design/terraform-structure.md) §4 の例外台帳にそのリポを使用リポとして登録した属性だけで、それ以外は類型または全リポ共通の値に従う（設計仕様書 §4）。
 - 既存リポを管理対象に入れるときは、**必ず `import` → `plan` で no-op 確認**してから `apply` する（いきなり apply すると既存設定を上書き新規作成する事故になる）。
 
 ---
@@ -167,7 +167,7 @@ terraform validate     # 構文・スキーマ検証
    [設計仕様書](docs/design/terraform-structure.md) §4「取り込み時の食い違い」に従って (a)/(b)/(c) に振り分け、所有者へ提示する。
    - **(a) 実値の変更**: import の PR より前に所有者の承認を得て GitHub 側の実値を変える。変更前の値は取り込みの Issue に記録する。
    - **(c) 方針値の見直し**: import より前の別 PR で方針値を変える。その PR の plan で他リポに生じる change を確認し、所有者の承認を得て apply する。
-   - **(b) 例外台帳への登録**: import の PR の中で per-repo のフィールドと例外台帳の行を追加する。
+   - **(b) 例外台帳への登録**: 所有者の承認を得て、import の PR の中で per-repo のフィールドと例外台帳の行を追加する。
    - import の PR の plan は `0 to change` を保つ。
 2. 対象リポの既存 Ruleset ID を調べる:
    ```bash
@@ -190,7 +190,7 @@ terraform validate     # 構文・スキーマ検証
    （例: `id = "gachanuma"`）。タグ Ruleset（`github_repository_ruleset.tag_protection["<repo>"]`、
    public リポのみ対象）を既に持つリポを取り込む場合も、アドレスを `tag_protection` に変えるだけで
    ID 形式は `branch_protection` と同じ `<repo>:<ruleset_id>`（例: `id = "dependabot-triage-action:23456789"`）。
-5. `terraform plan` を実行し、リポ固有値と例外台帳に登録した属性の per-repo の値を実態に合わせる。
+5. `terraform plan` を実行し、リポ固有値と例外台帳にそのリポを使用リポとして登録した属性の per-repo の値を実態に合わせる。
    非 public リポ、または public リポで対象リポが既にタグ Ruleset を import 済みの場合は
    **`0 to add, 0 to change, 0 to destroy`（import のみ）** に収束させる。
    public リポで対象リポにタグ Ruleset が無い場合（現状の想定ケース）は、`tag_protection.tf` の
@@ -335,7 +335,7 @@ marketplace（`hashicorp/agent-skills`）も `.claude/settings.json` の `extraK
 | 症状 | 原因・対処 |
 |---|---|
 | `403 Resource not accessible by integration` | App に対象リポの **Administration: Read and write** が無い、対象リポが **インストール対象に含まれていない**、または provider の `owner` 未設定。手順3（権限・Selected repositories）を見直す |
-| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み、リポ固有値と例外台帳に登録した属性の per-repo の値を実態に合わせる。類型決定値・全リポ共通値と実態が食い違う場合は、`terraform.tfvars` や方針値を寄せずに「既存リポの取り込み（import）」手順1へ戻る（[設計仕様書](docs/design/terraform-structure.md) §4） |
+| `import` 後に `plan` が差分を出し続ける | HCL が API 実体と不一致。plan の差分行を読み、リポ固有値と例外台帳にそのリポを使用リポとして登録した属性の per-repo の値を実態に合わせる。類型決定値・全リポ共通値と実態が食い違う場合は、`terraform.tfvars` や方針値を寄せずに「既存リポの取り込み（import）」手順1へ戻る（[設計仕様書](docs/design/terraform-structure.md) §4） |
 | Speculative Plan が PR 起票後に自動起動しない | HCP Workspace の Settings → Version Control で VCS 連携が未設定か "Automatic speculative plans on pull requests" が無効。連携 UI を確認する |
 | GitHub Checks に HCP Terraform の check が現れない | GitHub App（Terraform Cloud）がリポにインストールされていないか権限が不足。HCP の VCS 設定画面の手順に従い GitHub App を再インストールする |
 | Speculative Plan が `Error` / `Failed` で終わる | `.tf` 構文エラー・provider 認証失敗・変数未定義が原因のことが多い。HCP UI の Run ログで詳細を確認し、ローカルで `terraform validate` / `terraform fmt` を実施する |

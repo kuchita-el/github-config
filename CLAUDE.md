@@ -19,7 +19,7 @@ VCS 連携（`kuchita-el/github-config` ↔ HCP Workspace）が有効である�
 既に GitHub 側で稼働中のリポ・Ruleset・Repository 設定を `terraform.tfvars` の `repositories` に追加する場合、必ず以下の順序で進めること。
 
 1. `import {}` ブロックを一時的に追加する（Remote 実行では CLI の `terraform import` コマンドは使えないため、config-driven import を使う）
-2. `terraform plan` が `0 to add, 0 to change, 0 to destroy`（import のみ）になるまで `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。ただし、実態へ寄せるのはリポ固有値と例外台帳に登録した属性の per-repo の値に限り、それ以外の食い違いは方針値（`local.<concern>_preset` / `local.<concern>_profile_defaults`）も `terraform.tfvars` も寄せずに `docs/design/terraform-structure.md` §4「取り込み時の食い違い」に従って振り分けて所有者へ提示し、方針値の見直しは import より前の別 PR で行う
+2. `terraform plan` が `0 to add, 0 to change, 0 to destroy`（import のみ）になるまで、リポ固有値と、例外台帳にそのリポを使用リポとして登録した属性の per-repo の値を実態に合わせる。それ以外の食い違いは方針値（`local.<concern>_preset` / `local.<concern>_profile_defaults`）も `terraform.tfvars` も寄せずに `docs/design/terraform-structure.md` §4「取り込み時の食い違い」に従って振り分けて所有者へ提示し、方針値の見直しは import より前の別 PR で行う
 3. no-op を確認できたら `terraform apply` で state に取り込む
 4. `import {}` ブロックを削除し、再 `plan` が `No changes` のままであることを確認する
 
