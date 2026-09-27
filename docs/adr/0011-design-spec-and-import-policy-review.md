@@ -22,7 +22,7 @@ ADR 0004 の本文は変更しない。改めた判断は本 ADR に記録する
 - (b) 例外台帳に登録し、per-repo の値として実値を宣言して取り込む
 - (c) 方針値（`local.<concern>_preset` / `local.<concern>_profile_defaults`）そのものを見直す
 
-(a) には先例がある。[#4](https://github.com/kuchita-el/github-config/issues/4)・[#7](https://github.com/kuchita-el/github-config/issues/7) の取り込みでは、gachanuma・cody・coffeeshop などの実値を、取り込みの前に所有者の承認を得て区分の値へ変えてから import した（#7 については ADR 0010 のコンテキスト節）。[#73](https://github.com/kuchita-el/github-config/issues/73) でも、4リポの Actions 権限の実値を先に決定値へ変えてから取り込んだ（[ADR 0008](0008-actions-permissions.md) 決定 §2）。
+(a) には先例がある。[#4](https://github.com/kuchita-el/github-config/issues/4)・[#7](https://github.com/kuchita-el/github-config/issues/7) の取り込みでは、取り込みの前に所有者の承認を得て GitHub 側の実値を区分の値へ変えてから import した。#7 については、取り込み前の実値の食い違いを所有者の承認を得て GitHub 側で解消したことを、ADR 0010 のコンテキスト節が記録している。[#73](https://github.com/kuchita-el/github-config/issues/73) でも、4リポの Actions 権限の実値を先に決定値へ変えてから取り込んだ（[ADR 0008](0008-actions-permissions.md) 決定 §2）。
 
 本リポの所有者（kuchita-el）は 2026-09-27 に、(c) を条件付きで許すこと、判定の順序、現行規則を設計仕様書へ移すこと、仕様書の改訂で ADR を要する範囲を決めた。
 
