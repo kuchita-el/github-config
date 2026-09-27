@@ -1,34 +1,30 @@
-# Fixture (positive): github_repository に lifecycle.ignore_changes が不足。
-# ADR 0001 §3 が `visibility` と `archived` を必須保護対象として確定している。
-# 期待: 観点 3 が blocker で発火。
+# Fixture: repository.tf の github_repository.this の lifecycle.ignore_changes から archived を外す PR。
+# 元: repository.tf の resource "github_repository" "this"
 #
-# PR の内容: github_repository.this を現行 repository.tf の形で定義する（locals の repository_preset と
-# variables.tf / terraform.tfvars は main のまま）。
+# 差分イメージ（before → after）:
+#   before: ignore_changes = [visibility, archived]
+#   after:  ignore_changes = [visibility]
+# 本 PR の変更は上記の1か所だけ。下記以外の既存ファイル（locals の repository_preset、variables.tf /
+# terraform.tfvars）は main のまま。
 
 # --- repository.tf（PR 後、resource） ---
 resource "github_repository" "this" {
   for_each = var.repositories
 
-  name       = each.key
+  name = each.key
+
   visibility = each.value.visibility
 
-  # リポ固有値。
-  archived    = each.value.repository.archived
-  description = each.value.repository.description
+  archived     = each.value.repository.archived
+  description  = each.value.repository.description
+  homepage_url = each.value.repository.homepage_url
+  topics       = each.value.repository.topics
 
-  # 全リポ共通値。
-  allow_auto_merge       = local.repository_preset.allow_auto_merge
-  has_wiki               = local.repository_preset.has_wiki
-  has_projects           = local.repository_preset.has_projects
-  has_discussions        = local.repository_preset.has_discussions
-  has_issues             = local.repository_preset.has_issues
-  delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
+  # ...（main と同じ全リポ共通値の属性と dynamic "security_and_analysis" ブロックは省略）...
 
-  # NOTE: lifecycle ブロックが無い。
-  # ADR 0001 §3（docs/adr/0001-repository-resource-structure.md）が
-  # `visibility` と `archived` を必須保護対象として確定している。
-  # 以下を追加すべき:
-  #   lifecycle {
-  #     ignore_changes = [visibility, archived]
-  #   }
+  lifecycle {
+    ignore_changes = [
+      visibility,
+    ]
+  }
 }

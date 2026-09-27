@@ -1,32 +1,48 @@
-# Fixture (negative): ADR 0001 §3 通りの lifecycle.ignore_changes を持つ。
-# 期待: 観点 3 は発火しない。
+# Fixture: 全リポ共通値に allow_update_branch を足し、repository.tf の github_repository.this から参照する PR。
+# 元: repository.tf の locals の repository_preset と resource "github_repository" "this"
 #
-# PR の内容: github_repository.this を現行 repository.tf の形で定義する（locals の repository_preset と
-# variables.tf / terraform.tfvars は main のまま）。
+# 差分イメージ（before → after）:
+#   repository_preset に allow_update_branch = true を追加
+#   github_repository.this に allow_update_branch = local.repository_preset.allow_update_branch を追加
+# 本 PR の変更は上記の2か所だけ。lifecycle ブロックは main のまま。下記以外の既存ファイル
+# （variables.tf / terraform.tfvars）も main のまま。
+
+# --- repository.tf（PR 後、locals の repository_preset の変更部分） ---
+locals {
+  repository_preset = {
+    # ...（main と同じ値は省略）...
+
+    allow_update_branch = true
+  }
+}
 
 # --- repository.tf（PR 後、resource） ---
 resource "github_repository" "this" {
   for_each = var.repositories
 
-  name       = each.key
+  name = each.key
+
   visibility = each.value.visibility
 
-  # リポ固有値。
-  archived    = each.value.repository.archived
-  description = each.value.repository.description
+  archived     = each.value.repository.archived
+  description  = each.value.repository.description
+  homepage_url = each.value.repository.homepage_url
+  topics       = each.value.repository.topics
 
-  # 全リポ共通値。
   allow_auto_merge       = local.repository_preset.allow_auto_merge
   has_wiki               = local.repository_preset.has_wiki
   has_projects           = local.repository_preset.has_projects
   has_discussions        = local.repository_preset.has_discussions
   has_issues             = local.repository_preset.has_issues
   delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
+  allow_update_branch    = local.repository_preset.allow_update_branch
+
+  # ...（main と同じマージ方式の属性と dynamic "security_and_analysis" ブロックは省略）...
 
   lifecycle {
-    # ADR 0001 §3 で確定された保護対象。
-    # - visibility: public ⇔ private の誤上書きは復旧コスト極大
-    # - archived: 書き込み不能状態への遷移は運用影響が大きい
-    ignore_changes = [visibility, archived]
+    ignore_changes = [
+      visibility,
+      archived,
+    ]
   }
 }

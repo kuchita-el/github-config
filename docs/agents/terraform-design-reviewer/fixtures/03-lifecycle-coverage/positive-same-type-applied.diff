@@ -1,0 +1,33 @@
+# PR の内容: sandbox_repository.tf を新規追加し、検証用のリポジトリ sandbox-repo を github_repository.sandbox として
+# 管理対象に加える。
+
+diff --git a/sandbox_repository.tf b/sandbox_repository.tf
+new file mode 100644
+index 0000000..5fb08fb
+--- /dev/null
++++ b/sandbox_repository.tf
+@@ -0,0 +1,24 @@
++locals {
++  sandbox_repository = {
++    name       = "sandbox-repo"
++    visibility = "private"
++  }
++}
++
++resource "github_repository" "sandbox" {
++  name       = local.sandbox_repository.name
++  visibility = local.sandbox_repository.visibility
++
++  allow_auto_merge       = local.repository_preset.allow_auto_merge
++  has_wiki               = local.repository_preset.has_wiki
++  has_projects           = local.repository_preset.has_projects
++  has_discussions        = local.repository_preset.has_discussions
++  has_issues             = local.repository_preset.has_issues
++  delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
++
++  allow_merge_commit          = local.repository_preset.allow_merge_commit
++  allow_rebase_merge          = local.repository_preset.allow_rebase_merge
++  allow_squash_merge          = local.repository_preset.allow_squash_merge
++  squash_merge_commit_title   = local.repository_preset.squash_merge_commit_title
++  squash_merge_commit_message = local.repository_preset.squash_merge_commit_message
++}
