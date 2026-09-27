@@ -229,3 +229,19 @@ as shown above.
 （`snippet` フィールドは記録を簡潔にするため省略。両診断とも `filename`・`start.line` を個別に持つことは確認済み。）
 
 J7 が仮定と異なった（人間向け出力が集約する）ため、Task 5a はここで停止する。`validate-mixed-preexisting-and-new.txt` は未作成（4. のユーザー回答後に選ばれた形で作る）。`mixed-preexisting-and-new.diff` は形式非依存のため保存済み。
+
+### ユーザー回答後の取り直し（2026-09-28）
+
+J7 不成立を受け、ユーザーは選択肢 (a)（観点9 の入力と README 併用節 (d) の取得手順を `terraform validate -json` の出力に変える）を選んだ。理由: 人間向け出力（`-no-color`）は同じ要約 `Argument is deprecated` の警告を1件に集約し、変更前からの使用と新規使用が同居すると新規使用側の位置が消えるため（上記の実測）。選択肢 (b)（人間向け出力のまま限界として明記する）は、新規使用の見落としが手順を変えても構造的に残る点が採らなかった理由。
+
+この選択に伴い、fixture 09 の全ケース（陽性・属性／陰性／境界／陽性・resource／組み合わせ）の validate 出力を `mise exec -- terraform validate -json`（各ケースとも 2. と同じ一時編集を作り直した状態、単独コマンド）で取り直し、`validate-*.txt`（ファイル名は変えず、内容を `-json` の出力に置換。組み合わせケースのみ新規に `validate-mixed-preexisting-and-new.txt` を作成）とした。各ケースとも、作り直した状態の `git diff`（または `git diff --no-index /dev/null <一時ファイル>`）が保存済みの `.diff`（先頭のコメント行を除く）と一致することを確認した。
+
+`-json` 出力（`diagnostics[].range.filename`・`range.start.line`）は次のとおり:
+
+- 陽性（属性）: `repository.tf` line 82（`positive-attribute.diff` の追加行と一致）
+- 陰性: 警告なし（`diagnostics: []`）
+- 境界: `repository.tf` line 82（`boundary-preexisting.diff` の追加行〔`variables.tf`〕には無い）
+- 陽性（resource）: `deployment_branch_policy.tf` line 1（`positive-resource.diff` の追加行と一致）
+- 組み合わせ: 2件、`sandbox_repository.tf` line 6（`mixed-preexisting-and-new.diff` の追加行 `has_downloads = true` と一致）と `repository.tf` line 82（前提の既存使用側）。集約されず両方とも `range` を個別に持つ。
+
+すべてのケースの後始末（`git restore repository.tf variables.tf`、一時ファイル `deployment_branch_policy.tf`・`sandbox_repository.tf` の削除）を行い、`git status --short` で `.tf`・`.tfvars`・`.terraform.lock.hcl` の変更・未追跡が無いことを確認した。

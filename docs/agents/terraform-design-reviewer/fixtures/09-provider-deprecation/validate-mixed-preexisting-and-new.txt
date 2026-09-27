@@ -1,0 +1,62 @@
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 2,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "This attribute is no longer in use, but it hasn't been removed yet. It will be removed in a future version. See https://github.com/orgs/community/discussions/102145#discussioncomment-8351756",
+      "address": "github_repository.sandbox",
+      "range": {
+        "filename": "sandbox_repository.tf",
+        "start": {
+          "line": 6,
+          "column": 19,
+          "byte": 110
+        },
+        "end": {
+          "line": 6,
+          "column": 23,
+          "byte": 114
+        }
+      },
+      "snippet": {
+        "context": "resource \"github_repository\" \"sandbox\"",
+        "code": "  has_downloads = true",
+        "start_line": 6,
+        "highlight_start_offset": 18,
+        "highlight_end_offset": 22,
+        "values": []
+      }
+    },
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "Use the github_repository_vulnerability_alerts resource instead. This field will be removed in a future version.",
+      "address": "github_repository.this",
+      "range": {
+        "filename": "repository.tf",
+        "start": {
+          "line": 82,
+          "column": 26,
+          "byte": 4027
+        },
+        "end": {
+          "line": 82,
+          "column": 30,
+          "byte": 4031
+        }
+      },
+      "snippet": {
+        "context": "resource \"github_repository\" \"this\"",
+        "code": "  vulnerability_alerts = true",
+        "start_line": 82,
+        "highlight_start_offset": 25,
+        "highlight_end_offset": 29,
+        "values": []
+      }
+    }
+  ]
+}

@@ -1,10 +1,35 @@
-Warning: Argument is deprecated
-
-  with github_repository.this,
-  on repository.tf line 82, in resource "github_repository" "this":
-  82:   vulnerability_alerts = true
-
-Use the github_repository_vulnerability_alerts resource instead. This field
-will be removed in a future version.
-Success! The configuration is valid, but there were some validation warnings
-as shown above.
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 1,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "Use the github_repository_vulnerability_alerts resource instead. This field will be removed in a future version.",
+      "address": "github_repository.this",
+      "range": {
+        "filename": "repository.tf",
+        "start": {
+          "line": 82,
+          "column": 26,
+          "byte": 4027
+        },
+        "end": {
+          "line": 82,
+          "column": 30,
+          "byte": 4031
+        }
+      },
+      "snippet": {
+        "context": "resource \"github_repository\" \"this\"",
+        "code": "  vulnerability_alerts = true",
+        "start_line": 82,
+        "highlight_start_offset": 25,
+        "highlight_end_offset": 29,
+        "values": []
+      }
+    }
+  ]
+}
