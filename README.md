@@ -29,6 +29,10 @@ actions_permissions.tf 全リポ共通値 local.actions_permissions_preset と
                       github_actions_repository_permissions /
                       github_workflow_repository_permissions を for_each で
                       リポ単位に展開
+tag_protection.tf      全リポ共通値 local.tag_protection_preset と
+                      類型決定値 local.tag_protection_profile_defaults を直接参照
+                      github_repository_ruleset を local.tag_protection_targets
+                      （visibility=public で絞込）で for_each 展開
         │
         ▼
 GitHub API (App 認証)        state ⇄ HCP Terraform workspace
@@ -42,6 +46,7 @@ GitHub API (App 認証)        state ⇄ HCP Terraform workspace
 | `branch_protection.tf` | `local.branch_protection_profile_defaults`（類型決定値、[ADR 0007](docs/adr/0007-strict-status-checks-by-profile.md)）+ `local.branch_protection_preset`（全リポ共通値）+ Ruleset リソース（`for_each` 展開）。類型決定値は `repositories.<k>.profile` をキーに、リポ固有値は `repositories.<k>.branch_protection.*` を直接参照 |
 | `repository.tf` | `local.repository_preset`（全リポ共通値。既定ブランチ名を含む）+ `github_repository` リソース・`github_branch_default` リソース（いずれも `for_each` 展開）。リポ固有値は `repositories.<k>.repository.*` を直接参照 + `lifecycle.ignore_changes` |
 | `actions_permissions.tf` | `local.actions_permissions_preset`（全リポ共通値。類型決定値なし）+ `github_actions_repository_permissions` リソース・`github_workflow_repository_permissions` リソース（いずれも `for_each` 展開）。リポ固有値（`patterns_allowed`）は `repositories.<k>.actions_permissions.*` を直接参照 |
+| `tag_protection.tf` | `local.tag_protection_profile_defaults`（類型決定値、[ADR 0009](docs/adr/0009-tag-protection.md)）+ `local.tag_protection_preset`（全リポ共通値）+ `local.tag_protection_targets`（visibility=public で絞込、ADR 0004 §6）+ Ruleset リソース（`for_each` 展開）。リポ固有値は無し（`repositories.<k>.tag_protection` は導入していない） |
 | `terraform.tfvars` | 管理対象リポの実データ（秘密なし、コミット対象） |
 | `docs/adr/` | 設計判断記録（ADR）。リソース構造・属性方針等の重要決定を `NNNN-<slug>.md` 形式で残す |
 
@@ -163,15 +168,22 @@ terraform validate     # 構文・スキーマ検証
    import ID の形はリソース型ごとに異なる。`github_repository.this`、
    `github_branch_default.repository`、`github_actions_repository_permissions.actions_permissions`、
    `github_workflow_repository_permissions.actions_permissions` はリポ名だけ
-   （例: `id = "gachanuma"`）。
-4. `terraform plan` を実行し、**`0 to add, 0 to change, 0 to destroy`（import のみ）** になるまで
-   `terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。
+   （例: `id = "gachanuma"`）。タグ Ruleset（`github_repository_ruleset.tag_protection["<repo>"]`、
+   public リポのみ対象）を既に持つリポを取り込む場合も、アドレスを `tag_protection` に変えるだけで
+   ID 形式は `branch_protection` と同じ `<repo>:<ruleset_id>`（例: `id = "dependabot-triage-action:23456789"`）。
+4. `terraform plan` を実行し、`terraform.tfvars` / `branch_protection.tf` を実態へ寄せる。
+   非 public リポ、または public リポで対象リポが既にタグ Ruleset を import 済みの場合は
+   **`0 to add, 0 to change, 0 to destroy`（import のみ）** に収束させる。
+   public リポで対象リポにタグ Ruleset が無い場合（現状の想定ケース）は、`tag_protection.tf` の
+   `github_repository_ruleset.tag_protection["<repo>"]` が新規作成されるため、
+   `1 to add, 0 to change, 0 to destroy` に収束すれば import 成功（タグ Ruleset の新規作成は想定通り）。
    ただし、類型決定値・全リポ共通値と実態が食い違う場合は、`terraform.tfvars` や preset を実態へ寄せず、
    [ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §4 の「取り込み時の食い違い」に従う
    （理由のある差は例外台帳へ登録し、由来の無い差は取り込み前に所有者の承認を得て GitHub 側の実値を変える）。
    差分が出やすい箇所: `allowed_merge_methods` の順序、`required_check` の集合、`integration_id` の有無、`enforcement`。
    ```
    Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
+   # public リポでタグ Ruleset が無い場合: 1 to import, 1 to add, 0 to change, 0 to destroy.
    ```
 5. no-op を確認できたら `terraform apply`（state に取り込むだけ＝実 Ruleset は無変更で安全に管理下入り）。
 6. 取り込み完了後、追加した `import {}` ブロックを削除する（state に入った後は不要）。`plan` が
@@ -246,7 +258,7 @@ Agent(
 - **Ruleset が無いリポ**: Ruleset 以外の管理対象（`github_repository.this`・`github_branch_default.repository`・`github_actions_repository_permissions.actions_permissions`・`github_workflow_repository_permissions.actions_permissions`）は GitHub 側に既にあるため、上記「既存リポの取り込み（import）」の手順で import する。新規作成になるのは Ruleset だけ。
   1. 取り込みの前に、対象リポのワークフローが参照する action を SHA 参照（`uses: <owner>/<repo>@<40桁の SHA> # <バージョン>`）へ固定する。複合 action は内部の参照も SHA で固定された版を使う（[ADR 0008](docs/adr/0008-actions-permissions.md) の帰結）。
   2. `terraform.tfvars` の `repositories` にリポ名を追加する。`visibility` と `profile`（[ADR 0004](docs/adr/0004-terraform-module-structure-policy.md) §7、必須・既定値なし）を直下に宣言し、判定根拠をコメントで残す。リポ固有値は設定種別名のキーの下に入れ子で書く（CI があれば `branch_protection = { status_check_contexts = [...], status_check_integration_id = 15368 }`、説明文があれば `repository = { description = "..." }`、`actions/*`・`github/*` 以外の action を使うなら `actions_permissions = { patterns_allowed = ["<owner>/<repo>@*"] }`）。値の無い設定種別のキーは省略する（ADR 0004 §5）。全リポ共通値（`local.<concern>_preset`）はここに書かない。
-  3. Ruleset 以外の4リソースの `import {}` ブロックを追加し、`terraform plan` が `4 to import, 1 to add, 0 to change, 0 to destroy`（Ruleset の作成のみ）になることを確認する（他リポが recreate されないこと）。実値が全リポ共通値・類型決定値と食い違う場合は ADR 0004 §4「取り込み時の食い違い」に従う。
+  3. Ruleset 以外の4リソースの `import {}` ブロックを追加し、`terraform plan` を実行する。**public リポの場合**、branch_protection Ruleset と tag_protection Ruleset の計2件が新規作成されるため `4 to import, 2 to add, 0 to change, 0 to destroy`（Ruleset の作成のみ）になることを確認する（他リポが recreate されないこと）。実値が全リポ共通値・類型決定値と食い違う場合は ADR 0004 §4「取り込み時の食い違い」に従う。
   4. `terraform apply` の後、`import {}` ブロックを削除し、`plan` が `No changes` のままであることを確認する。
 
 > `for_each` のキーはリポ名（不変）。リポ追加で既存リソースが destroy/recreate されることはない。
