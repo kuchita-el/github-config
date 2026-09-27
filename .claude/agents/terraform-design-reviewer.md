@@ -35,6 +35,7 @@ reviewer 自身は `git diff` を実行できない。呼び出し側が事前�
   git diff <ベースブランチ>...HEAD -- '*.tf' '*.tfvars'
   ```
 - 観点 8（plan-time リスク）に必要な HCP plan 出力テキストも同様にプロンプト経由で受け取る（`## plan 出力` セクション）。
+- 観点 9（provider 非推奨の新規使用）に必要な `terraform validate -json` の出力も同様にプロンプト経由で受け取る（`## validate 出力` セクション）。呼び出し側が、差分を取得した HEAD の作業ディレクトリ（PR 適用後）で実行したものとする。
 
 呼び出し例（本リポ `README.md` 「PR レビュー時の reviewer 併用」節参照）:
 ```
@@ -48,6 +49,9 @@ Agent(
 
     ## plan 出力（任意）
     <ここに HCP plan 出力テキストを貼る。未提供なら空欄>
+
+    ## validate 出力（任意）
+    <ここに `terraform validate -json` の出力を貼る。未提供なら空欄>
 
     ## 要件情報
     <Issue/PR 本文の要点>
@@ -87,6 +91,7 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
 - **`## git diff` セクション**: 呼び出し側が事前取得した差分テキスト（`git diff <base>...HEAD -- '*.tf' '*.tfvars'` の stdout）
 - **要件情報**: Issue 本文・計画ファイル・PR 本文等
 - **`## plan 出力` セクション（任意）**: HCP plan 出力テキスト。観点 8 評価に使用。未提供時は観点 8 を「未評価」扱い
+- **`## validate 出力` セクション（任意）**: 呼び出し側が PR 適用後の作業ディレクトリで実行した `terraform validate -json` の出力（JSON）。観点 9 評価に使用。未提供時は観点 9 を「未評価」扱い
 - **（任意）レビュー契約**: 完了チェックリストが渡された場合は各項目を検証
 
 ## レビュー手順
@@ -278,6 +283,48 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
   - 未提供: plan 出力テキストが渡されない → 総評に「観点 8: 未評価（plan 出力未提供）」を明示（エラーではない）。
   - blocker 格上げ: PR に `import { to = X; id = Y }` があり、同 `X` が plan で `replace` または `destroy` → warning から blocker に格上げ。
 
+#### 観点 9: provider 非推奨の新規使用
+
+- **守る不変条件**: provider が非推奨とした属性・resource を、差分で新たに使い始めない。
+- **判定の根拠**:
+  - 非推奨の宣言と警告: Terraform 公式の provider 開発ドキュメント（SDKv2 の「Deprecations, Removals, and Renames」<https://developer.hashicorp.com/terraform/plugin/sdkv2/best-practices/deprecations>、Plugin Framework の同名の解説 <https://developer.hashicorp.com/terraform/plugin/framework/deprecations>）。provider は非推奨の属性・resource を provider schema に宣言し、それを使う構成には警告が出る（実行は完了する）。同ドキュメントは、非推奨にしたことを CHANGELOG に記し、除去は次のメジャー版で行う手順を示している。
+  - 非推奨の内容と代替: 当該 provider の公式ドキュメント（Terraform Registry の provider ページ。例: `integrations/github` <https://registry.terraform.io/providers/integrations/github/latest/docs>）と CHANGELOG（例: `integrations/github` のリリースノート <https://github.com/integrations/terraform-provider-github/releases>）。
+  - 警告の位置の読み方: Terraform 公式ドキュメント `terraform validate`（<https://developer.hashicorp.com/terraform/cli/commands/validate>）の JSON 出力形式。`diagnostics` の各要素は `severity`（`"error"` または `"warning"`）・`summary`・`detail`・`range` を持ち、`range.filename` は作業ディレクトリからの相対パス、`range.start.line` は 1 始まりの行番号である。`range` は構成の特定の箇所に結び付かない診断では省略されるか `null` になる。
+  - 判定に使う情報は `## validate 出力` の診断に限る。上記の provider ドキュメント・CHANGELOG は指摘の根拠として挙げる出典であり、reviewer がそれを読んで、または自身の知識で、非推奨かどうかを推定するものではない。
+- **入力**: `terraform validate -json` の出力（`## validate 出力` セクション）が提供された場合のみ評価する。人間向けの出力（`-json` なし）は、同じ `summary` の警告を1件にまとめ、2件目以降の位置を「(and N more similar warnings elsewhere)」に畳むため、変更前からの使用と新規の使用が同じ `summary` で並ぶと新規の使用の位置が読めなくなる。このため観点 9 の入力は `-json` の出力とする。
+- **validate 出力未提供時**: 総評セクションに「観点 9: 未評価（validate 出力未提供）」と明示出力する（エラー扱いとしない）。このとき、差分が非推奨の属性・resource を使っていると reviewer 自身が考えても、観点 9 の指摘は出さない。
+- **検出条件（判定手順）**:
+  1. `diagnostics` から、`severity` が `"warning"` で、provider が非推奨とした属性・resource の使用を知らせる診断を取り出す。`summary` の文言は provider の実装によって異なる（例: `integrations/github` provider v6.12.1 の実測では、属性は `Argument is deprecated`、resource は `Deprecated Resource`）。`summary`・`detail` が非推奨を述べていない警告と、`severity` が `"error"` の診断は観点 9 の対象にしない。
+  2. 取り出した診断ごとに `range.filename` と `range.start.line` を読む。`range.filename` は、差分のファイル見出し（`+++ b/<path>`）が指すファイルと対応付ける。`range` を持たない診断は差分の追加行と突き合わせられないため、指摘しない。
+  3. 差分のファイルごとに、hunk ヘッダ `@@ -a,b +c,d @@` から追加行の行番号（PR 適用後のファイルでの行番号）を求める。hunk ごとに行番号を `c` から数え始め、文脈行（行頭が空白。貼り付けで行頭の空白が落ちた空行も文脈行として数える）と追加行（行頭が `+`）で1ずつ進め、削除行（行頭が `-`）と `\ No newline at end of file` の行では進めない。追加行（`+++` のファイル見出しを除く）の行番号の集まりを、そのファイルの追加行集合とする。新規ファイル（`@@ -0,0 +1,N @@`）は 1〜N 行目がすべて追加行である。
+  4. 診断の (`range.filename`, `range.start.line`) が差分の追加行集合に含まれる場合に限り発火する。含まれない診断（差分が触れていない行・ファイルにある、変更前からの非推奨の使用）は指摘しない。1つの validate 出力に変更前からの使用と新規の使用の診断が混在する場合は、新規の使用（追加行に当たる診断）だけを指摘する。
+  5. 非推奨かどうかは validate 出力の診断だけで判定する。validate 出力に警告の無い属性・resource を、reviewer 自身の知識で非推奨と推定して指摘しない。
+- **重要度**: warning。非推奨の属性・resource は現行版では動作し（警告が出ても実行は完了する）、除去は provider の将来の版で行われる。見逃すと provider を更新した時点で plan が失敗するため suggestion より上とし、動作する変更のマージを止めるほどではないため blocker より下とする。
+- **指摘文言テンプレ**: 「`<file>:<line>` で、provider が非推奨とした<属性 `<属性名>`|resource `<TYPE>`>（`<address>`）を差分で新たに使っています（validate の警告: `<summary>`）。provider の案内: `<detail の要旨>`。provider の案内に従い、代替の属性・resource へ移すか、使用をやめてください。」属性名は診断が指す追加行から、resource 型は `address` から読む。
+- **入出力例**:
+  - 陽性（属性）:
+    - 入力（`## git diff`）: `repository.tf` の `github_repository.this` に `vulnerability_alerts = true` を1行追加する差分（同じ hunk で前後の属性の桁揃えも変わる）。hunk ヘッダ `@@ -75,10 +75,11 @@` から、75〜77 行目が文脈行、78〜82 行目が追加行で、`vulnerability_alerts = true` は PR 適用後の 82 行目と読める。
+    - 入力（`## validate 出力`）: `"warning_count": 1` で、`diagnostics` は次の1件（`snippet` は省略）。
+      ```json
+      {
+        "severity": "warning",
+        "summary": "Argument is deprecated",
+        "detail": "Use the github_repository_vulnerability_alerts resource instead. This field will be removed in a future version.",
+        "address": "github_repository.this",
+        "range": {
+          "filename": "repository.tf",
+          "start": { "line": 82, "column": 26, "byte": 4027 },
+          "end": { "line": 82, "column": 30, "byte": 4031 }
+        }
+      }
+      ```
+    - 期待出力: 観点 9 warning、`repository.tf:82`、指摘内容「provider が非推奨とした属性 `vulnerability_alerts` を差分で新たに使っている（provider の案内: `github_repository_vulnerability_alerts` resource）」、修正方針「provider が案内する代替へ移す」。
+  - 陽性（resource）: 新規ファイルの1行目に `resource "github_repository_deployment_branch_policy" "sandbox" {` を追加し、validate 出力に同じファイル・1 行目の `Deprecated Resource`（案内: `github_repository_environment_deployment_policy` resource）がある → 観点 9 warning 発火。
+  - 陰性: 非推奨でない属性を追加し、validate 出力の `diagnostics` が空 → 発火しない。
+  - 境界（変更前からの使用）: validate 出力が変更前からの非推奨の使用（差分が触れていないファイルの行）を警告しているが、差分は別ファイルの行だけを変える → 発火しない。
+  - 組み合わせ: validate 出力に、変更前からの使用（差分が触れていない行）と新規の使用（差分の追加行）の2件の `Argument is deprecated` がある → 新規の使用の行だけを観点 9 warning で指摘し、変更前からの使用は指摘しない。
+  - 未提供: validate 出力が渡されない → 差分が非推奨の属性を新たに使っていても観点 9 の指摘は出さず、総評に「観点 9: 未評価（validate 出力未提供）」を明示（エラーではない）。
+
 ### 4. 重大度の分類
 
 全ての指摘を以下の 3 段階に分類する:
@@ -293,6 +340,7 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
   - 観点 2（validation 不足）
   - 観点 4（for_each vs count）
   - 観点 8（plan-time リスク、通常時）
+  - 観点 9（provider 非推奨の新規使用）
 - **suggestion**: マージを妨げない改善提案:
   - 観点 5（ハードコード抽出）
 
@@ -332,7 +380,7 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
 
 ### 総評
 blocker: {N}件 / warning: {M}件 / suggestion: {L}件
-観点別判定: 観点1: ✅/❌, 観点2: ✅/❌, 観点3: ✅/❌, 観点4: ✅/❌, 観点5: ✅/❌, 観点6: ✅/❌, 観点7: ✅/❌, 観点8: ✅/❌ または「未評価（plan 出力未提供）」
+観点別判定: 観点1: ✅/❌, 観点2: ✅/❌, 観点3: ✅/❌, 観点4: ✅/❌, 観点5: ✅/❌, 観点6: ✅/❌, 観点7: ✅/❌, 観点8: ✅/❌ または「未評価（plan 出力未提供）」, 観点9: ✅/❌ または「未評価（validate 出力未提供）」
 ```
 
 ### 指摘がない場合
@@ -344,7 +392,7 @@ blocker: {N}件 / warning: {M}件 / suggestion: {L}件
 
 ### 総評
 blocker: 0件 / warning: 0件 / suggestion: 0件
-観点別判定: 観点1: ✅, 観点2: ✅, 観点3: ✅, 観点4: ✅, 観点5: ✅, 観点6: ✅, 観点7: ✅, 観点8: ✅ または「未評価（plan 出力未提供）」
+観点別判定: 観点1: ✅, 観点2: ✅, 観点3: ✅, 観点4: ✅, 観点5: ✅, 観点6: ✅, 観点7: ✅, 観点8: ✅ または「未評価（plan 出力未提供）」, 観点9: ✅ または「未評価（validate 出力未提供）」
 ```
 
 ## 注意事項
