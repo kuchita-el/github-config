@@ -1,0 +1,26 @@
+# PR の内容: repository.tf の github_repository.this に web_commit_signoff_required を追加する。
+# 前提: PR 前の repository.tf の github_repository.this は vulnerability_alerts = true を含む（差分の削除行に
+# 現れる）。評価では worktree の repository.tf の代わりに、この差分を適用した後の状態を扱う。
+
+diff --git a/repository.tf b/repository.tf
+index 427df50..c6e8760 100644
+--- a/repository.tf
++++ b/repository.tf
+@@ -75,11 +75,12 @@ resource "github_repository" "this" {
+   # Repo-specific values. null archived falls back to the provider default
+   # (false); null description / homepage_url mean none; an empty topics set
+   # means no topics.
+-  archived             = each.value.repository.archived
+-  description          = each.value.repository.description
+-  homepage_url         = each.value.repository.homepage_url
+-  topics               = each.value.repository.topics
+-  vulnerability_alerts = true
++  archived                    = each.value.repository.archived
++  description                 = each.value.repository.description
++  homepage_url                = each.value.repository.homepage_url
++  topics                      = each.value.repository.topics
++  vulnerability_alerts        = true
++  web_commit_signoff_required = true
+ 
+   # All-repository common values.
+   allow_auto_merge       = local.repository_preset.allow_auto_merge
