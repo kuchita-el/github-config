@@ -7,7 +7,7 @@
 - **観点 #**: 9
 - **重大度**: warning
 - **ファイル:行**: `repository.tf:82`
-- **突き合わせ**: 診断（`summary` `Argument is deprecated`、`address` `github_repository.this`、`range.filename` `repository.tf`、`range.start.line` 82）の位置が、hunk `@@ -75,10 +75,11 @@` の追加行（78〜82 行目）のうち `vulnerability_alerts = true`（82 行目）に当たる。
+- **突き合わせ**: 診断（`summary` `Argument is deprecated`、`address` `github_repository.this`、`range.filename` `repository.tf`、`range.start.line` 82）の位置が、hunk `@@ -75,10 +75,11 @@` の追加行（78〜82 行目）のうち `vulnerability_alerts = true`（82 行目）に当たる。同じ resource の削除行（桁揃え前の `archived`・`description`・`homepage_url`・`topics` の4行）に `vulnerability_alerts` は無いため、書き換えには当たらない。
 - **指摘文言の主旨**: provider が非推奨とした属性 `vulnerability_alerts` を差分で新たに使っている（provider の案内: `github_repository_vulnerability_alerts` resource を使う）。修正方針は、provider が案内する代替へ移すこと。
 
 ## 陽性 2: resource (`positive-resource.diff` + `validate-positive-resource.txt`)
@@ -27,6 +27,11 @@
 
 - 期待出力: 「観点 9: ✅」（観点 9 の指摘なし）
 - 理由: 診断（`Argument is deprecated`、`repository.tf` 82 行目）は、`.diff` 先頭のコメントが前提とする変更前からの非推奨の使用を指す。差分の追加行は `variables.tf` の 3 行目（`description` の変更）だけで、`repository.tf` の行は差分に無いため、診断の位置は追加行に当たらない。
+
+## 境界: 変更前からの使用の書き換え (`boundary-rewritten-preexisting.diff` + `validate-boundary-rewritten-preexisting.txt`)
+
+- 期待出力: 「観点 9: ✅」（観点 9 の指摘なし）
+- 理由: 診断（`Argument is deprecated`、`address` `github_repository.this`、`repository.tf` 82 行目）の位置は、hunk `@@ -75,11 +75,12 @@` の追加行（78〜83 行目）のうち `vulnerability_alerts        = true`（82 行目）に当たる。しかし同じ resource（hunk ヘッダの後ろの `resource "github_repository" "this" {`）の削除行に `vulnerability_alerts = true` があり、`terraform fmt` の桁揃えで同じ属性の行が削除行と追加行の組になった、変更前からの使用の書き換えに当たる。新たに加わった `web_commit_signoff_required` には警告が無い。
 
 ## 組み合わせ: 変更前からの使用と新規の使用の同居 (`mixed-preexisting-and-new.diff` + `validate-mixed-preexisting-and-new.txt`)
 
@@ -54,3 +59,5 @@
 - `integrations/github` provider 公式ドキュメント（Terraform Registry）: <https://registry.terraform.io/providers/integrations/github/latest/docs>
 - `integrations/github` provider のリリースノート（CHANGELOG）: <https://github.com/integrations/terraform-provider-github/releases>
 - Terraform 公式ドキュメント `terraform validate`（JSON 出力形式）: <https://developer.hashicorp.com/terraform/cli/commands/validate>
+- Terraform 公式ドキュメント「References to Named Values」（`address` の resource・data source の形）: <https://developer.hashicorp.com/terraform/language/expressions/references>
+- Terraform 公式ドキュメント「Resource Address Reference」（`address` のモジュールパス・インスタンスのキー）: <https://developer.hashicorp.com/terraform/cli/state/resource-addressing>
