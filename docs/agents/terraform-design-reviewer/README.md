@@ -21,7 +21,7 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 | 6 | 既定値の合成と単一の置き場所 | blocker（判定の限界は warning） | 未指定（null）が揃えた値を消さない、揃えた値の正の置き場所が一つ、必須だった宣言を省略可能にしない | Terraform 公式 [`merge` 関数](https://developer.hashicorp.com/terraform/language/functions/merge)・[型制約 `optional`](https://developer.hashicorp.com/terraform/language/expressions/type-constraints)・[Types and Values の `null`](https://developer.hashicorp.com/terraform/language/expressions/types) |
 | 7 | 差分が要する provider 権限の列挙 | warning | 差分が provider に新たに要求する権限が、レビューの時点で漏れなく列挙される。付与状況との照合は呼び出し側で行う | [GitHub Apps permissions reference](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps)・[GitHub REST API](https://docs.github.com/en/rest) の各エンドポイントのドキュメント・`integrations/github` provider の[公式ドキュメント](https://registry.terraform.io/providers/integrations/github/latest/docs)と[ソース](https://github.com/integrations/terraform-provider-github) |
 | 8 | plan-time リスク | warning / blocker | 意図しない破棄・再作成を伴って適用されない。PR の `import` ブロックの対象アドレスが plan 出力で置換・破棄されるときは blocker | Terraform 公式 [import](https://developer.hashicorp.com/terraform/language/import)・[`import` ブロック](https://developer.hashicorp.com/terraform/language/block/import)・[`terraform plan`](https://developer.hashicorp.com/terraform/cli/commands/plan) |
-| 9 | provider 非推奨の新規使用 | warning | provider が非推奨とした属性・resource（data source を含む）を差分で新たに使い始めない。入力は `terraform validate -json` の出力（未提供なら未評価）。値が validate の時点で決まらない属性の新規使用は検出できない（判定の限界） | Terraform 公式の provider 開発ドキュメント「Deprecations, Removals, and Renames」（[SDKv2](https://developer.hashicorp.com/terraform/plugin/sdkv2/best-practices/deprecations)・[Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/deprecations)）・provider の公式ドキュメントと CHANGELOG・[`terraform validate`](https://developer.hashicorp.com/terraform/cli/commands/validate) |
+| 9 | provider 非推奨の新規使用 | warning | provider が非推奨とした属性・resource（data source を含む）を差分で新たに使い始めない。入力は `terraform validate -json` の出力（未提供なら未評価）。値が validate の時点で決まらない属性は、警告が出ない場合は新規使用を検出できない（判定の限界） | Terraform 公式の provider 開発ドキュメント「Deprecations, Removals, and Renames」（[SDKv2](https://developer.hashicorp.com/terraform/plugin/sdkv2/best-practices/deprecations)・[Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/deprecations)）・provider の公式ドキュメントと CHANGELOG・[`terraform validate`](https://developer.hashicorp.com/terraform/cli/commands/validate) |
 
 ## 起動例
 
@@ -34,7 +34,7 @@ git diff main...HEAD -- '*.tf' '*.tfvars' > /tmp/tf-diff.txt
 terraform validate -json   # PR 適用後（HEAD）の作業ディレクトリで実行し、出力を ## validate 出力 に貼る
 ```
 
-validate の実行に要る初期化と環境変数は [`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用)「PR レビュー時の reviewer 併用」節を参照。`## validate 出力` には `terraform validate -json` の出力（JSON）をそのまま貼る。リポジトリのルート以外のディレクトリで validate を実行した場合は、見出しの直後の1行に `実行ディレクトリ: <リポジトリのルートからの相対パス>`（例: `実行ディレクトリ: infra`）を置き、その次の行から JSON を貼る。この行が無ければ、reviewer はリポジトリのルートで実行したものとみなす。人間向けの出力（`-json` なし）や validate が失敗した出力を貼ると、観点 9 は未評価になる。
+validate の実行に要る初期化と環境変数は [`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用)「PR レビュー時の reviewer 併用」節を参照。`## validate 出力` には `terraform validate -json` の出力（JSON）をそのまま貼る。リポジトリのルート以外のディレクトリで validate を実行した場合は、見出しの後の最初の行（JSON の前）に `実行ディレクトリ: <リポジトリのルートからの相対パス>`（例: `実行ディレクトリ: infra`）の1行を置き、その次の行から JSON を貼る。reviewer は見出しの後の最初の空でない行が `実行ディレクトリ:` で始まるときだけそれを実行ディレクトリとして読み、JSON はその行を除いて読む。この行が無ければ、reviewer はリポジトリのルートで実行したものとみなす（読み方の定めは reviewer 定義の「入力」節）。人間向けの出力（`-json` なし）や validate が失敗した出力を貼ると、観点 9 は未評価になる。
 
 ### 単独起動
 
@@ -85,9 +85,14 @@ Agent(
 両出力は呼び出し側で統合する。重複指摘抑止ルール（[`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用) 参照）:
 
 - 観点 5（ハードコード）は Terraform 固有定数に限定。汎用 reviewer の「コード重複」観点と境界が重なる場合は本 reviewer を採用しない（汎用に委ねる）。
-- 観点 3（lifecycle 保護の縮退）・観点 6（既定値の合成と単一の置き場所）は、汎用 reviewer に本リポ固有の規約への準拠の確認を委ねて参照先を渡した場合、その準拠の指摘と同じ行に重なりうる。重なった場合は、下記の同一行・同主旨の運用ルールに従う。
-- 観点 1, 2, 4, 7, 8, 9 は Terraform 固有の設計の観点であり、汎用 reviewer の汎用の観点（コード重複等）とは重ならない。
-- 同一行・同主旨の指摘が出た場合は片方を採用する（二重表示しない）。
+- 汎用 reviewer に本リポ固有の規約への準拠の確認を委ねて参照先を渡した場合、次の観点はその準拠の指摘と同じ行に重なりうる。重なった場合は、下記の同一行・同主旨の運用ルールに従う（観点 7 を除く）。
+  - 観点 2（`variable` の `validation` 不足）: 入力の検証の定め
+  - 観点 3（lifecycle 保護の縮退）: 保護する属性の定め
+  - 観点 6（既定値の合成と単一の置き場所）: 揃える値の置き場所や上書きの経路の定め
+  - 観点 7（差分が要する provider 権限の列挙）: App 等に与える権限の定め。観点 7 の列挙は、汎用 reviewer の指摘と重なっても捨てずに両方を残す（統合段で付与状況と照合する入力になるため。運用ルールの例外）
+  - 観点 8（plan-time リスク）: 既存リソースの取り込みの手順の定め
+- 観点 1, 4, 9 は Terraform 固有の設計の観点であり、汎用 reviewer の汎用の観点（コード重複等）とは重ならない。準拠の指摘と同じ行に重なった場合も、下記の運用ルールに従う。
+- 同一行・同主旨の指摘が出た場合は片方を採用する（二重表示しない。観点 7 の列挙は上記の例外）。
 
 ## フィクスチャ駆動の検証
 
@@ -142,11 +147,11 @@ reviewer 動作確認用フィクスチャを `fixtures/` 配下に観点ごと�
 
 worktree の追跡ファイルが変わると、`*-applied.diff` が適用できなくなることがある。例: `negative-rename-applied.diff` は `dependabot_security_updates.tf` のコメント行を文脈行に使うため、そのコメントが変わると適用できない。新規ファイルの差分も、worktree に同名のファイルができると適用できない。`git apply --check` が失敗したら、次の手順で作り直す。
 
-1. 状態を作る: 新規ファイルの差分は、worktree ルートに fixture と同じ名前・同じ内容の一時ファイルを作る（内容は元の `.diff` の追加行、または対応する `.tf.example` の追加ブロック）。既存ファイルの差分は、その追跡ファイルを一時的に編集し、fixture の冒頭コメントが述べる変更を現行の本文に加える（例: `negative-rename-applied.diff` は resource のラベルを `security_updates` に改め、対応する `moved` ブロックを同じファイルに加える）。
+1. 状態を作る: 新規ファイルの差分は、worktree ルートに、差分が新規追加するファイル（`+++ b/<ファイル>`）と同じ名前・同じ内容の一時ファイルを作る（内容は元の `.diff` の追加行、または対応する `.tf.example` の追加ブロック）。worktree に同じ名前のファイルができて適用に失敗した場合は、worktree の既存の名前と重ならない名前に改めて作り、`expected.md` の記載（ファイル名など）も改める。既存ファイルの差分は、その追跡ファイルを一時的に編集し、fixture の冒頭コメントが述べる変更を現行の本文に加える（例: `negative-rename-applied.diff` は resource のラベルを `security_updates` に改め、対応する `moved` ブロックを同じファイルに加える）。
 2. 差分を取る: 新規ファイルは `git diff --no-index /dev/null <ファイル>`（差分があると終了コード 1 を返すが正常）、既存ファイルは `git diff -- <ファイル>`。
 3. 保存する: 出力の先頭に、PR の内容だけを中立に記す `#` のコメント行を付けて、fixture の `.diff` に上書き保存する（`(positive)`/`(negative)` の区分、期待、判定の手掛かりは書かない）。
 4. 元に戻す: 一時ファイルを削除し、編集した追跡ファイルは `git restore <ファイル>` で戻す。`git status --short` で `.tf` の変更・未追跡の `.tf` が無いことを確かめる。
-5. `git apply --check <fixture の .diff>` で適用できることを確かめる。作り直した `.diff` をコミットし、`expected.md` の行番号などの記述と食い違わないことを確かめてから、評価手順に戻る。
+5. `git apply --check <fixture の .diff>` で適用できることと、`expected.md` の行番号・ファイル名などの記述と食い違わないことを確かめてから、作り直した `.diff`（と改めた `expected.md`）をコミットし、評価手順に戻る。
 
 ## resource 型 × 必要権限テーブル（観点 7）
 
@@ -165,7 +170,7 @@ reviewer 定義の観点 7 に埋め込まれた静的テーブル（差分で�
 - 起動経路: `.tf` 差分検出時に手動 `Agent` 起動（自動 hook 化は将来検討）
 - AC5 重複抑止: 観点定義の相互排他 + 運用ルール（同主旨指摘は片方採用）
 - 観点を不変条件で書き、実現形は実行時に ADR・実コードを読ませる（#79）。ADR 0004 の規約を観点定義へ書き写す案は、ADR を改訂するたびに観点定義の改訂が要る状態を再生産するため採らなかった
-- 判定の根拠を一般的な出典へ移す（#103）: #79 の方式（観点を不変条件で書き、実現形は実行時に ADR・実コードから読む）を改め、判定の根拠を Terraform・provider・GitHub の公式ドキュメント等の一般的な出典に限った。本リポ固有の規約への準拠は reviewer では判定せず、呼び出し側が汎用 reviewer に参照先を渡して確認する（[`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用)）。worktree の既存コードは差分を読み解く文脈としてだけ読み、判定の根拠にしない。あわせて観点 3 を lifecycle 保護の縮退の検出（warning）に、観点 6 を既定値の合成と単一の置き場所（blocker）に、観点 7 を差分が要する provider 権限の列挙（warning。付与状況との照合は呼び出し側）に改め、観点 9（provider 非推奨の新規使用、warning）を加えた。
+- 判定の根拠を一般的な出典へ移す（#103）: #79 の方式のうち、実現形（その時点の正しい書き方）を実行時に ADR・実コードから読む点を改め、判定の根拠を Terraform・provider・GitHub の公式ドキュメント等の一般的な出典に限った。観点を不変条件で書き、不変条件を判定の軸とする点は #79 から引き継いでいる。本リポ固有の規約への準拠は reviewer では判定せず、呼び出し側が汎用 reviewer に参照先を渡して確認する（[`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用)）。worktree の既存コードは差分を読み解く文脈としてだけ読み、判定の根拠にしない。あわせて観点 3 を lifecycle 保護の縮退の検出（warning）に、観点 6 を既定値の合成と単一の置き場所（blocker）に、観点 7 を差分が要する provider 権限の列挙（warning。付与状況との照合は呼び出し側）に改め、観点 9（provider 非推奨の新規使用、warning）を加えた。
   - 観点を足しすぎていないかの確認: tflint の `recommended` プリセット（公式ルール一覧）と観点 1〜8 を突き合わせ、重複は無く、削る観点は無かった。
   - 観点として追加しなかった候補と再検討の条件: 秘密値の `sensitive` 指定は、秘密を受け取る variable・output を導入するときに再検討する。plan 時に値が確定しない `for_each` キーは、Speculative Plan を経ない適用経路ができたときに再検討する（#103 の時点では、plan の `Invalid for_each argument` で必ず止まる）。
   - 本リポ専用の準拠確認エージェントの新設は採らず、汎用 reviewer に参照先を渡す形にした。運用で確認漏れの実績が出たら別 Issue で再検討する。
