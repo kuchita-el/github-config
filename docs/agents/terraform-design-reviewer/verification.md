@@ -254,3 +254,224 @@ Task 5b のレビューで、行単位の照合では変更前からある非推
 - **差分**: hunk `@@ -75,11 +75,12 @@ resource "github_repository" "this" {`。桁揃えで `archived`・`description`・`homepage_url`・`topics`・`vulnerability_alerts` の5行が削除行と追加行の組になり、`web_commit_signoff_required = true` が1行増えた（追加行は 78〜83 行目、`vulnerability_alerts        = true` は 82 行目）。
 - **validate -json**: `"valid": true`、`"warning_count": 1`。警告は `Argument is deprecated`（`address` `github_repository.this`、`range` `repository.tf` line 82 column 33〜37）の1件だけで、`web_commit_signoff_required` には警告が無かった（非推奨でないことの確認）。警告の行は差分の追加行に当たり、同じ resource の削除行に `vulnerability_alerts = true` がある。
 - **validate の失敗時の出力（参考）**: 同じ状態で、出力をファイルへリダイレクトする形（`mise exec -- terraform validate -json > <file>`）で実行したところ、サンドボックスの除外に一致せず provider プラグインを起動できずに失敗した。出力は `"valid": false`、`"error_count": 1`、`"warning_count": 0` で、診断は `Failed to load plugin schemas`（`range` なし）の error 1件だけだった。validate が失敗すると非推奨の警告が0件になる例として記録する（観点9 の「未評価（validate が失敗）」の扱いの裏付け）。この出力は fixture に使わず、fixture には単独コマンドで取得した上記の出力を原文のまま書き写した。
+
+### 判定の限界: 値が validate の時点で決まらない属性（2026-09-28、ユーザー決定 (c)）
+
+#103 の実装中に、属性単位の非推奨は、属性の値が validate の時点で決まらない（input variable 由来など）と `terraform validate` が警告を出さないことが分かった。ユーザーは (c)（この PR で限界を実測付きで定義の観点9 の「判定の限界」と本記録に明記し、観点9 の情報源に provider schema を加えて限界を解消する件は別 Issue で扱う）を選んだ。以下はその実測で、定義の観点9 の「判定の限界」の裏付けである。
+
+- **実施日**: 2026-09-28
+- **版**: Terraform v1.15.6、provider `integrations/github` v6.12.1（`mise exec -- terraform version` で確認）
+- **手順**: 作業ディレクトリは worktree ルート（初期化済み。上記「手順」の init による）。一時ファイル `zz_tmp_deprecation_check.tf` を worktree ルートに作り、状態ごとに内容を書き換えて `mise exec -- terraform validate -json` を単独コマンドで実行した。一時ファイルを置く前の現行コードでの出力は `"warning_count": 0`・`"diagnostics": []` だった。非推奨の属性には `github_repository` の `has_downloads`（組み合わせケースで `Argument is deprecated` が出た属性）、非推奨の resource には `github_repository_deployment_branch_policy`（陽性・resource ケースで `Deprecated Resource` が出た型）を使った。(a)〜(c) が確認の対象、(d)・(e) は値の由来の違いを確かめるための補足である。
+
+| 状態 | 一時ファイルの内容（要旨） | `warning_count` | 警告 |
+|---|---|---|---|
+| (a) 属性・input variable | `variable "zz_tmp_has_downloads" { type = bool }` と、`github_repository.zz_tmp_check` に `has_downloads = var.zz_tmp_has_downloads` | 0 | なし |
+| (b) 属性・リテラル | (a) と同じ `variable` を置いたまま、`has_downloads = true` | 1 | `Argument is deprecated`（line 7） |
+| (c) resource・引数がすべて input variable | `variable "zz_tmp_value" { type = string }` と、`github_repository_deployment_branch_policy.zz_tmp_check` の `repository`・`environment_name`・`name` をすべて `var.zz_tmp_value` | 1 | `Deprecated Resource`（line 5） |
+| (d) 属性・`each.value`（補足） | `github_repository.zz_tmp_check` に `for_each = { "zz-tmp-check" = true }`、`name = each.key`、`has_downloads = each.value` | 0 | なし |
+| (e) 属性・リテラルだけから決まる local value（補足） | `locals { zz_tmp_has_downloads = true }` と、`has_downloads = local.zz_tmp_has_downloads` | 1 | `Argument is deprecated`（line 7） |
+
+(a) の一時ファイルと出力（原文）:
+
+```hcl
+variable "zz_tmp_has_downloads" {
+  type = bool
+}
+
+resource "github_repository" "zz_tmp_check" {
+  name          = "zz-tmp-check"
+  has_downloads = var.zz_tmp_has_downloads
+}
+```
+
+```json
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 0,
+  "diagnostics": []
+}
+```
+
+(b) の一時ファイルと出力（原文）:
+
+```hcl
+variable "zz_tmp_has_downloads" {
+  type = bool
+}
+
+resource "github_repository" "zz_tmp_check" {
+  name          = "zz-tmp-check"
+  has_downloads = true
+}
+```
+
+```json
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 1,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "This attribute is no longer in use, but it hasn't been removed yet. It will be removed in a future version. See https://github.com/orgs/community/discussions/102145#discussioncomment-8351756",
+      "address": "github_repository.zz_tmp_check",
+      "range": {
+        "filename": "zz_tmp_deprecation_check.tf",
+        "start": {
+          "line": 7,
+          "column": 19,
+          "byte": 148
+        },
+        "end": {
+          "line": 7,
+          "column": 23,
+          "byte": 152
+        }
+      },
+      "snippet": {
+        "context": "resource \"github_repository\" \"zz_tmp_check\"",
+        "code": "  has_downloads = true",
+        "start_line": 7,
+        "highlight_start_offset": 18,
+        "highlight_end_offset": 22,
+        "values": []
+      }
+    }
+  ]
+}
+```
+
+(c) の一時ファイルと出力（原文）:
+
+```hcl
+variable "zz_tmp_value" {
+  type = string
+}
+
+resource "github_repository_deployment_branch_policy" "zz_tmp_check" {
+  repository       = var.zz_tmp_value
+  environment_name = var.zz_tmp_value
+  name             = var.zz_tmp_value
+}
+```
+
+```json
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 1,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "Deprecated Resource",
+      "detail": "This resource is deprecated in favour of the github_repository_environment_deployment_policy resource.",
+      "address": "github_repository_deployment_branch_policy.zz_tmp_check",
+      "range": {
+        "filename": "zz_tmp_deprecation_check.tf",
+        "start": {
+          "line": 5,
+          "column": 70,
+          "byte": 114
+        },
+        "end": {
+          "line": 5,
+          "column": 71,
+          "byte": 115
+        }
+      },
+      "snippet": {
+        "context": "resource \"github_repository_deployment_branch_policy\" \"zz_tmp_check\"",
+        "code": "resource \"github_repository_deployment_branch_policy\" \"zz_tmp_check\" {",
+        "start_line": 5,
+        "highlight_start_offset": 69,
+        "highlight_end_offset": 70,
+        "values": []
+      }
+    }
+  ]
+}
+```
+
+(d) の一時ファイルと出力（原文）:
+
+```hcl
+resource "github_repository" "zz_tmp_check" {
+  for_each = {
+    "zz-tmp-check" = true
+  }
+
+  name          = each.key
+  has_downloads = each.value
+}
+```
+
+```json
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 0,
+  "diagnostics": []
+}
+```
+
+(e) の一時ファイルと出力（原文）:
+
+```hcl
+locals {
+  zz_tmp_has_downloads = true
+}
+
+resource "github_repository" "zz_tmp_check" {
+  name          = "zz-tmp-check"
+  has_downloads = local.zz_tmp_has_downloads
+}
+```
+
+```json
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 1,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "This attribute is no longer in use, but it hasn't been removed yet. It will be removed in a future version. See https://github.com/orgs/community/discussions/102145#discussioncomment-8351756",
+      "address": "github_repository.zz_tmp_check",
+      "range": {
+        "filename": "zz_tmp_deprecation_check.tf",
+        "start": {
+          "line": 7,
+          "column": 19,
+          "byte": 139
+        },
+        "end": {
+          "line": 7,
+          "column": 45,
+          "byte": 165
+        }
+      },
+      "snippet": {
+        "context": "resource \"github_repository\" \"zz_tmp_check\"",
+        "code": "  has_downloads = local.zz_tmp_has_downloads",
+        "start_line": 7,
+        "highlight_start_offset": 18,
+        "highlight_end_offset": 44,
+        "values": []
+      }
+    }
+  ]
+}
+```
+
+- **結果**: 属性単位の非推奨の警告は、属性の値が validate の時点で決まる場合（リテラル、リテラルだけから決まる local value）に限り出て、値が input variable や `each.value` に由来する場合は出なかった。resource 単位の非推奨の警告（`Deprecated Resource`）は、引数をすべて input variable にしても出た。Terraform 公式ドキュメント `terraform validate` は、validate が与えられた変数の値や state によらずに構成を検査すると説明しており、変数由来の値は validate の時点では決まらない。
+- **定義への反映**: 観点9 に「判定の限界」を置き、値が validate の時点で決まらない属性の新規使用は検出できないこと、総評の「✅」は非推奨の属性の新規使用が無いことまでは示さないことを書き、評価した場合の総評に「値が validate の時点で決まらない属性の非推奨は検出の対象外」を併記するようにした。fixture 09 の入力はいずれもリテラルの値で、この限界に当たらない。
+- **解消の扱い**: 観点9 の情報源に provider schema（非推奨の印）を加えてこの限界を解消する件は、別 Issue で扱う。
+- **後始末**: 一時ファイル `zz_tmp_deprecation_check.tf` を削除し、`git status --short` に `.tf` の変更・未追跡の `.tf` が無いことを確認した。
