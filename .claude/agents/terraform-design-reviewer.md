@@ -260,44 +260,49 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
   - 陰性（揃えた値の追加）: 揃えた値を `locals` の1か所に足し、resource から直接参照する → 発火しない。
   - 陰性（規約だけに反する）: 一般的な設計として問題の無い追加で、ファイル名・resource のラベルなどの命名だけがリポジトリの規約と異なる → 発火しない（規約への準拠は本観点で判定しない）。
 
-#### 観点 7: App 権限境界違反検出
+#### 観点 7: 差分が要する provider 権限の列挙
 
-- **守る不変条件**: Terraform が操作に要する GitHub API の権限は、本リポの GitHub App に付与済みの権限の範囲に収まる。
-- **実現形の参照先**: App に付与している権限は `CLAUDE.md` §3 と `README.md` の「設計思想」節・「GitHub App の作成・インストール・秘密鍵の生成」節を判定の都度読んで確定する。resource 型ごとの必要権限は下表（provider と GitHub API の事実であり、本リポの ADR には依存しない）。
-- **検出条件**: `integrations/github` provider の resource 追加で、その resource 型の必要権限が、App に付与済みの権限（上記参照先で確定したもの）に含まれない。
-- **重要度**: blocker
-- **指摘文言テンプレ**: 「リソース `<TYPE>` は本リポジトリの App 権限境界外です（必要権限: `<必要権限>`）。本リポの App は `<参照先で確定した付与済み権限>` のみを持ち（`CLAUDE.md` §3、`README.md`「設計思想」参照）、追加権限の付与は別 Issue で扱います。本 PR からは本リソースを削除するか、別 Issue で App 権限拡張を提案してください。」
-- **resource 型 × 必要 App 権限の静的テーブル**（観点 7 検出に必要な範囲に絞る、網羅しない）:
+- **守る不変条件**: 差分が provider に新たに要求する権限（provider が GitHub の API を呼ぶために、認証に使う GitHub App 等が持つべき権限）が、レビューの時点で漏れなく列挙される。
+- **判定の根拠**:
+  - GitHub Apps permissions reference（<https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps>）。GitHub App の権限ごとに、その権限で使える REST API のエンドポイントとアクセス（read・write）を示す。1つのエンドポイントが複数の権限を要する場合と、いずれか1つの権限で足りる場合があり、その区別は各エンドポイントのドキュメントに従う。
+  - GitHub REST API の各エンドポイントのドキュメント（<https://docs.github.com/en/rest>）の「Fine-grained access tokens for "<エンドポイント名>"」の節。エンドポイントが要する権限の組（すべてを要するか、いずれか1つで足りるか）を示す。
+  - `integrations/github` provider の公式ドキュメント（Terraform Registry <https://registry.terraform.io/providers/integrations/github/latest/docs>。各 resource ページの権限に関する注記）とソース（<https://github.com/integrations/terraform-provider-github> の `github/resource_github_<型>.go`。各 resource の作成・読み取り・更新・削除・取り込みが呼ぶ REST・GraphQL のエンドポイント）。resource 型ごとの必要な権限は、ソースが呼ぶエンドポイントを上記の permissions reference とエンドポイントのドキュメントで権限へ引いて求める。
+- **文脈として読むもの**: 差分で追加した resource の型ごとに、変更前から存在する同型 resource（「文脈としての参照」の定義による）があるか。worktree (post) の走査範囲（「文脈としての参照」で定める、ルートモジュールと、そこから入れ子をたどるローカルの子モジュールの `*.tf`）を `Grep '^resource\s+"<TYPE>"'` で読む。判定の根拠にはしない。
+- **検出条件**:
+  1. 差分の `+resource` ヘッダから追加集合 A を、`-resource` ヘッダから削除集合 R を作る（観点 1 の判定アルゴリズムの手順 1・2 と同じ）。
+  2. A にある resource 型のうち、`integrations/github` provider の型（`required_providers` で `integrations/github` を指すローカル名〔通常は `github`〕を接頭辞に持つ型）で、変更前から存在する同型 resource を持たない型を、差分で新たに使い始める型とする。変更前から存在する同型 resource は、走査範囲にある同型ブロックのうち A に含まれないもの、および R にある同型のものである（「文脈としての参照」の定義）。追加したブロック自体（A にあるもの）も、走査範囲外のファイル（文書・試験用の例示ファイル等）にある同型の行頭 `resource` も、変更前から存在する同型 resource に数えない。
+  3. 差分で新たに使い始める型ごとに、必要な権限を下記の静的表で引いて列挙する。表に無い型は、下記の「表に無い型の扱い」による。
+  4. 変更前から存在する同型 resource を持つ型は、差分がその型の resource を追加・変更しても列挙しない。同型 resource の名前の付け替え（R と A に同型が1件ずつ）もこれに当たる。
+  - 本観点は必要な権限の列挙までを行い、列挙した権限が認証に使う GitHub App 等に与えられているかの照合は行わない。照合は、呼び出し側が付与状況を知る担い手に委ねる。
+  - 列挙は resource 型の単位で行う。引数の値によって追加で呼ぶエンドポイントの権限（属性単位の条件）は列挙の対象にしない。
+- **重要度**: warning。発火したら必ず報告する（付与状況は本観点では判定しないため、与えられていそうな権限でも列挙から省かない）。
+- **指摘文言テンプレ**: 「`<file>:<line>` で追加した `<TYPE>.<NAME>`（同じ型の追加が複数あれば列挙）により、変更前のコードで使っていない resource 型 `<TYPE>` を使い始めています。`<TYPE>` の操作に要する権限: `<権限名（アクセス）の列挙>`（出典: 観点 7 の静的表、GitHub Apps permissions reference）。付与状況との照合は呼び出し側で行ってください。」表に無く、一次情報で確かめられなかった型は、権限の列挙を「必要権限: 未確定（`<確かめられなかった理由>`）」とする。
+- **resource 型 × 必要な権限の静的表**（本観点の列挙に使う範囲に絞り、網羅しない）: 権限名は GitHub Apps permissions reference の権限名で、特記の無いものは repository の権限。「書き込み」「読み取り」は同 reference の Access 列の write・read に当たる。各型の作成・読み取り・更新・削除・取り込みが呼ぶエンドポイントの権限を挙げ、引数の値によって追加で呼ぶエンドポイントの権限は挙げない。`integrations/github` provider v6.12.1 のソースが呼ぶエンドポイントを、permissions reference とエンドポイントのドキュメントで引いて求めた。表の維持・更新も、判定の根拠に挙げた一次情報で行う。
 
-  | resource 型 | 必要 App 権限 |
+  | resource 型 | 必要な権限 |
   |---|---|
-  | `github_repository` | Administration RW |
-  | `github_repository_ruleset` | Administration RW |
-  | `github_repository_collaborator` | Administration RW |
-  | `github_team_repository` | Administration RW |
-  | `github_branch_default` | Administration RW |
-  | `github_actions_secret` | Actions: Secrets RW |
-  | `github_actions_variable` | Actions: Variables RW |
-  | `github_repository_file` | Contents RW |
-  | `github_repository_environment` | Environments RW |
-  | `github_repository_dependabot_security_updates` | Administration RW + Dependabot Alerts RW |
-  | `github_issue_label` | Issues RW |
+  | `github_repository` | Administration（書き込み）、Metadata（読み取り） |
+  | `github_repository_ruleset` | Administration（書き込み）、Metadata（読み取り） |
+  | `github_repository_collaborator` | Administration（書き込み）、Metadata（読み取り） |
+  | `github_team_repository` | Administration（書き込み）、Members（organization の権限。読み取り）、Metadata（読み取り） |
+  | `github_branch_default` | Administration（書き込み）、Metadata（読み取り） |
+  | `github_actions_secret` | Secrets（書き込み）、Metadata（読み取り） |
+  | `github_actions_variable` | Variables（書き込み）、Metadata（読み取り） |
+  | `github_repository_file` | Contents（書き込み）、Metadata（読み取り） |
+  | `github_repository_environment` | Administration（書き込み）、Actions（読み取り）、Metadata（読み取り） |
+  | `github_repository_dependabot_security_updates` | Administration（書き込み） |
+  | `github_issue_label` | Issues（書き込み）または Pull requests（書き込み） |
 
-  表に無い resource 型は、下記の導出元で必要権限を確かめてから判定する。確かめられない場合は「判断に迷う」として blocker に倒す。
-
-  **テーブル導出元**（実在する一次情報のみ）:
-  - `integrations/github` provider 公式ドキュメント: 各 resource ページの "Import" 節・"Argument Reference" に散在する権限注記、および resource ページ冒頭の概要記述
-  - provider ソースリポジトリ `integrations/terraform-provider-github` の `github/*.go` API クライアントコード（CRUD で呼ぶ GitHub REST/GraphQL エンドポイントから必要権限を逆引き）
-  - GitHub Apps permissions reference: <https://docs.github.com/en/rest/overview/permissions-required-for-github-apps>（REST エンドポイント × 必要 App permission の公式マッピング）
-  - GitHub REST API ドキュメントの各エンドポイント "Fine-grained access tokens require ..." 節
-
-  **注**: 過去に「各 resource ページ末尾の 'GitHub API Token Scopes' 節」と記述していたが、`integrations/github` 公式に統一節として存在しない。本テーブルの維持・更新時は上記の実在する一次情報を参照すること。
-
-- **対象外 provider**: `integrations/github` 以外の provider のリソースは「観点 7: 対象外 provider」として未評価扱いとし、blocker としない。
+- **表に無い型の扱い**: 表に無い `integrations/github` provider の型は、判定の根拠に挙げた一次情報（provider のソースが呼ぶエンドポイントと、permissions reference・エンドポイントのドキュメント）で必要な権限を確かめられた場合に限り列挙し、確かめた出典を添える。確かめられない場合（reviewer が一次情報を参照できない場合を含む）は「必要権限: 未確定」として warning で報告する。推定した権限を、確かめた列挙として書かない。
+- **対象外 provider**: `integrations/github` 以外の provider の resource 型は本観点の列挙の対象にせず、指摘にしない。総評に「観点 7: 対象外 provider（`<TYPE>`）」と明示する（未評価の扱い。エラーにしない）。
 - **入出力例**:
-  - 陽性: `github_actions_secret` を追加する差分 → 観点 7 blocker 発火（必要権限: Actions: Secrets RW）。
-  - 陽性: `github_repository_file` を追加する差分 → 観点 7 blocker 発火（必要権限: Contents RW）。
-  - 陰性: `github_repository_ruleset` を追加する差分 → 発火しない（Administration RW で動作）。
+  - 陽性（新たに使い始める型）:
+    - 入力（`## git diff`）: 新規ファイル `actions_secrets.tf` に `resource "github_actions_secret" "deploy_token"` を追加する差分。変更前のコードに `github_actions_secret` の resource は無い。worktree (post) には追加したブロック自体があるが、追加集合 A にあるため変更前から存在する同型 resource に数えない。サブディレクトリの例示ファイルにある同型の行頭 `resource`（ラベル `actions_secrets`）も、走査範囲外のため数えない。
+    - 期待出力: 観点 7 warning「`github_actions_secret` の操作に要する権限: Secrets（書き込み）、Metadata（読み取り）。付与状況との照合は呼び出し側で行うこと」。
+  - 陽性（新たに使い始める型）: 変更前のコードに同型が無い `github_repository_file` を追加する差分 → 観点 7 warning（Contents（書き込み）、Metadata（読み取り））。
+  - 陰性（変更前から使っている型）: 変更前から `github_repository_ruleset` の resource がある中で、別の `github_repository_ruleset` を追加する差分 → 発火しない。
+  - 陰性（名前の付け替え）: 変更前に1件だけある型の resource のラベルを変え、`moved` でアドレスを付け替える差分（`-resource` の旧ラベルが R、`+resource` の新ラベルが A に入る） → R の旧ブロックを変更前から存在する同型 resource に数えるため、発火しない。
+  - 表に無い型: 表に無い `integrations/github` provider の型を新たに使い始め、一次情報で必要な権限を確かめられない → 観点 7 warning「必要権限: 未確定」。
 
 #### 観点 8: plan-time リスク検出
 
@@ -388,13 +393,13 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
 - **blocker**: マージすべきでない問題。以下が該当する:
   - 観点 1（moved 不在）
   - 観点 6（既定値の合成と単一の置き場所。判定の限界に当たる場合のみ warning）
-  - 観点 7（App 権限境界違反）
   - 観点 8 の `import` ブロック連携時
   - レビュー契約項目の不合格
 - **warning**: マージ可能だが警告として残す。以下が該当する:
   - 観点 2（validation 不足）
   - 観点 3（lifecycle 保護の縮退）
   - 観点 4（for_each vs count）
+  - 観点 7（差分が要する provider 権限の列挙）
   - 観点 8（plan-time リスク、通常時）
   - 観点 9（provider 非推奨の新規使用）
 - **suggestion**: マージを妨げない改善提案:

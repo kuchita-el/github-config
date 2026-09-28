@@ -1,9 +1,5 @@
-# Fixture (positive): github_repository_file を追加。
-# App スコープ（Administration RW + Metadata R）の範囲外。
-# 必要権限: Contents RW（README.md は意図的に Contents を付与していない）
-# 期待: 観点 7 が blocker で発火。
-#
-# PR の内容: 全管理リポに同じ CODEOWNERS を配る設定種別を追加する。他の既存ファイルは main のまま。
+# Fixture: 全管理リポに同じ CODEOWNERS を配る設定種別を追加する PR。
+# 本 PR の変更は下記のファイルの追加だけ。下記以外の既存ファイルは main のまま。
 
 # --- codeowners.tf（PR で新規追加） ---
 locals {

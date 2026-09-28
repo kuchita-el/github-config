@@ -1,0 +1,23 @@
+# PR の内容: dependabot_security_updates.tf の resource のラベルを dependabot_security_updates から security_updates に
+# 短くし、moved ブロックで state 上のアドレスを付け替える。設定値は変えない。
+
+diff --git a/dependabot_security_updates.tf b/dependabot_security_updates.tf
+index ed16cf2..0aa2e8a 100644
+--- a/dependabot_security_updates.tf
++++ b/dependabot_security_updates.tf
+@@ -20,9 +20,14 @@ locals {
+ #
+ # See: docs/design/terraform-structure.md (§4 value categories, §5 layout)
+ #      docs/adr/0010-vulnerability-alerts-and-dependabot-security-updates.md
+-resource "github_repository_dependabot_security_updates" "dependabot_security_updates" {
++resource "github_repository_dependabot_security_updates" "security_updates" {
+   for_each = var.repositories
+ 
+   repository = each.key
+   enabled    = local.dependabot_security_updates_preset.enabled
+ }
++
++moved {
++  from = github_repository_dependabot_security_updates.dependabot_security_updates
++  to   = github_repository_dependabot_security_updates.security_updates
++}
