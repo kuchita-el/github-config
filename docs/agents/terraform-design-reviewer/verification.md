@@ -475,3 +475,154 @@ resource "github_repository" "zz_tmp_check" {
 - **定義への反映**: 観点9 に「判定の限界」を置き、値が validate の時点で決まらない属性は警告が出ない場合に新規使用を検出できないこと、総評の「✅」は警告が出ない新規使用が無いことまでは示さないことを書き、評価した場合の総評にこの限界を併記するようにした。fixture 09 の入力はいずれもリテラルの値で、この限界に当たらない。
 - **解消の扱い**: 観点9 の情報源に provider schema（非推奨の印）を加えてこの限界を解消する件は、別 Issue で扱う。
 - **後始末**: 一時ファイル `zz_tmp_deprecation_check.tf` を削除し、`git status --short` に `.tf` の変更・未追跡の `.tf` が無いことを確認した。
+
+## 照合表（#103 再試験、2026-09-28）
+
+Issue #103（判定の根拠を一般的な出典へ移し、観点3・6・7 を改め、観点9 を加えた改訂）の後に、全ケースを代理試験で評価した。本節の照合表は、定義 a06c48d（`.claude/agents/terraform-design-reviewer.md`）で全ケースを評価し直した最終パスの結果である。それより前の評価で PASS しなかったケースと直した経緯は、下記「PASS しなかったケースと直した経緯」に記す。
+
+### 検証方法
+
+- **評価者**: sonnet の汎用 subagent（**代理実行**。記録上のモデルは `claude-sonnet-5`）。観点1〜9 に1体ずつ（観点どうしは独立のため並列）、観点9 の未提供ケースに別の1体、適用後ケース4件に1件ずつ1体の計14体。各ケース1回。
+- **渡したもの**: (1) 改訂後の定義の worktree 上の絶対パス、(2) worktree ルートの絶対パスを「worktree (post)」として（リポのファイル〔`*.tf`・`*.tfvars`・README・その他の文書〕はこの配下から読み、作業ディレクトリが別の場所でもそこを worktree として読まないよう指示）、(3) 評価対象の fixture の絶対パス（観点8 は plan テキスト、格上げケースは `import-block.tf.example` と `plan-positive-replace.txt` の組、観点9 は `.diff` と `validate-*.txt` の組）、(4) ケースごとに独立に評価すること、(5) 禁止事項: `expected.md`・`verification.md`・`docs/agents/terraform-design-reviewer/README.md` を読まない、書き込み・git コマンド・サブエージェントの起動をしない、(6) 実行した全ツール呼び出しを実行ログとして出力に含めること。リポジトリ内の文書（ADR・設計仕様書・CLAUDE.md など）を読むことは禁じていない（実運用と同じ条件で、定義が本リポ文書を判定の根拠に使わせないことを確かめるため）。
+- **定義を絶対パスで渡した理由**: `subagent_type` による名前解決は、作業ディレクトリから上位へたどって `.claude/agents/` を探し、ファイルの監視はセッション開始時に存在したディレクトリに限る。main checkout で起動して worktree へ移ったセッションでは、改訂後の定義と main checkout の改訂前の定義のどちらが読まれるかを確定できないため、名前解決に依存しない形にした（J5）。評価者14体の記録で、読んだ定義の全行が a06c48d の版と一致することを確かめた。
+- **worktree (post) のルートを絶対パスで渡した理由**: 評価者の作業ディレクトリが main checkout でありうるため。渡さないと評価者は PR 適用前の main を読み、適用後ケースが追加集合 A・削除集合 R の処理を通らずに期待どおりの結果になりうる。
+- **適用後ケースを worktree に適用して1件ずつ評価した理由**: 実運用では worktree が PR 適用後で、差分が追加した resource ブロック自体を含む。「変更前から存在する同型 resource」を判定に使う観点3 (b)・観点7 で、追加集合 A を既存と数えないこと（観点7 は、走査範囲をルートモジュールに限り fixture 配下の例示を数えないことも）と、削除集合 R を既存に含めることを、追加ブロックが実在する状態で確かめるため。worktree を書き換えるため、他の評価者と並列にせず、観点ごとの評価がすべて終わってから1件ずつ行った。各ケースの前に `git apply --check` が通り、`git apply` の後の `git status --short` に当該ファイルだけが現れ（新規ファイルは未追跡、`negative-rename-applied` は ` M dependabot_security_updates.tf`）、評価後に元に戻して `.tf` の変更・未追跡の `.tf` が無いことを確かめた。`git apply --check` は4件とも通り、fixture の作り直しは無かった。評価者には、worktree に適用したことを伝えていない。
+- **観点9 の未提供ケースを別の評価者で評価した理由**: 同じ評価者が直前に `validate-positive-attribute.txt` で同じ属性の非推奨の警告を読んでいると、評価者自身の知識による指摘が出ないことを試せないため。この評価者には `positive-attribute.diff` だけを渡し、`fixtures/09-provider-deprecation/` の `validate-*.txt` を読むことを禁じた（記録上、呼び出しは Read 4件〔評価者への共通指示、定義2回、`positive-attribute.diff`〕だけで、`validate-*.txt` を読んでいない）。なお、定義の観点9 の入出力例に同じ属性・同じ位置（`vulnerability_alerts`、`repository.tf:82`）の診断が載っており、評価者は同じ属性の非推奨を定義から知った状態だった（出力でも言及している）。それでも validate 出力が無いときは指摘しないことが示され、期待の判定は変わらない。
+- **記録の検査**: 評価者の自己申告（出力中の実行ログ）は証拠にせず、評価者の記録（transcript）のツール呼び出しと結果で確かめた。(i) 適用後ケースで worktree (post) 配下の適用ファイルを読んだこと（下記「全ケースの照合」の「記録の検査」の列）。(ii) 書き込み・git 操作が無いこと: 14体の呼び出しは Read 101件・Bash 32件・最終報告の受け渡し14件だけで、Write・Edit 等は0件。Bash 32件はいずれも `cd` と `ls`・`find`・`grep`・`sed -n`・`cat`・`head`・`sort`・`echo`（区切りの表示）による読み取りで、ファイルへのリダイレクト（`2>/dev/null`・`2>&1` を除く）と git は0件。(iii) 期待値が漏れていないこと: 9件の `expected.md`・`verification.md`・reviewer README の各行（空白を詰めて12文字以上）を禁止行とし、全ツール結果の各行と照合した。一致した行はすべて、その結果を返したファイル自身（定義、fixture の `.tf.example`・`.diff`・`validate-*.txt`、worktree の `repository.tf`・`variables.tf`）の行で、禁止ファイルから来た行は0行。禁止ファイルを読んだ呼び出しも0件。自己申告の実行ログには記録と食い違うもの（前置していない `cd` を書く、失敗した呼び出しを省く、読んだ順が異なる）があり、自己申告が証拠にならないことを示している。
+- **文脈**: 14体とも、プロジェクトの CLAUDE.md（App に付与した権限の記述を含む）が文脈に載っていた（AC1 の「規約文書が文脈に載っている状態でも」の前提を満たす）。
+- **ツール環境**: 評価者は `Grep`・`Glob` を持たず、`Read` と読み取りの `Bash` を使った。reviewer 実機（`tools: Read, Grep, Glob`）とはツール構成が異なる（代理試験の限界）。観点4 の評価者は、最終報告の受け渡しが成功した後に、API の使用上限の通知で終了した。照合には記録上の最終報告を使った。
+- **PASS 条件**: 対象観点の発火の有無・観点番号・重要度が `expected.md` と一致すること。加えて、観点7 は列挙した権限が「列挙する権限」と一致すること、観点9 は指摘のファイル・行が一致すること、観点6 は指摘の根拠が各ケースの「根拠の示し方」の不変条件の番号と出典を含み、`merge` の使用そのものを指摘しないこと、観点8 の格上げケースは修正方針が収束のさせ方（構成と実リソースのどちらを変えるか）を指示しないこと。観点9 を評価したケースの総評に付く限界の併記は定義どおりで、不一致にしない。適用後ケースは (i)〜(iii) を、それ以外のケースは (iii) を確かめられた場合に限り PASS とする。対象観点以外の発火は、`expected.md` に記載があれば照合し、無ければ参考記録とする。
+- **抜き取り確認**: 評価者の出力はドラフトとして扱い、各観点で2〜3件の主張（指摘の行番号、比較の相手、列挙した権限、plan のアドレス、validate の診断の位置）を fixture・worktree・定義と照らした。判定に影響する齟齬は無かった（軽微なもの: `03-positive-same-type` の指摘箇所の行番号を、新規ファイルの行でなく fixture 上の行で書いた）。
+
+### worktree との名前の重なりの確認
+
+評価の前（定義 a9ecd60 の時点）に、01〜09 の全 fixture が新規追加または書き換えとする定義の名前（locals 名・resource の (TYPE, NAME)・variable 名・ファイル名・Ruleset 名）を、worktree ルートの `*.tf` と突き合わせた。分類は (a) 既存の定義を書き換える PR として重なり、その旨が fixture に明記されている、(b) 明記の無い重なり（PR 後の状態が定義の二重化になり、定義と無関係な理由で対象外の観点が発火しうる）。その後の是正（2232cdc・a06c48d）は定義と expected.md（06・08）だけを変え、fixture の入力と worktree の `.tf` を変えていないため、この結果は最終パスにも当てはまる。
+
+| fixture | worktree と重なった名前 → 分類 | 重ならない名前 |
+|---|---|---|
+| 01（陽性・陰性） | `github_repository_ruleset.branch_protection`（`branch_protection.tf`）→ (a)、節見出し「（PR 後、resource）」 | － |
+| 02（陽性・陰性） | variable `repositories`（`variables.tf`）→ (a)、節見出し「（PR 後）」 | － |
+| 03 `positive`・`negative` | `github_repository.this`、locals `repository_preset`（`repository.tf`）→ (a)、節見出し「（PR 後、…）」 | － |
+| 03 `positive-same-type`・`negative-same-type`、適用後2件 | － | locals `sandbox_repository`、`github_repository.sandbox`、ファイル `sandbox_repository.tf` |
+| 04 `positive`・`negative` | `github_repository_ruleset.branch_protection` → (a)、節見出し「（PR 後、resource）」 | － |
+| 04 `boundary-count-one` | locals `branch_protection_preset` → (a)、節見出し「（PR 後、変更部分）」 | `github_repository_ruleset.branch_protection_self` |
+| 05（陽性・陰性） | `github_repository_ruleset.branch_protection` → (a)、節見出し「（PR 後、resource）」 | － |
+| 06 `positive-repository` | variable `repositories` → (a)、節見出し「（PR 後、…）」 | － |
+| 06 `positive-branch-protection` | variable `repositories` → (a)、節見出し「（PR 後、抜粋）」 | locals `branch_protection` |
+| 06 `positive-default-as-policy` | variable `repositories`、`github_repository.this` → (a)、節見出し「（PR 後、…）」 | － |
+| 06 `negative-repository` | locals `repository_preset`、`github_repository.this`、variable `repositories` → (a)、節見出し「（PR 後、抜粋…）」 | － |
+| 06 `negative-branch-protection` | locals `branch_protection_preset`、`github_repository_ruleset.branch_protection` → (a)、節見出し「（PR 後、抜粋…）」 | － |
+| 06 `negative-override-with-fallback` | variable `repositories`、`github_repository.this` → (a)、節見出し「（PR 後、…）」 | locals `repository_settings` |
+| 06 `negative-local-convention` | － | locals `release_branch_protection_preset`・`release_branch_protection_targets`、`github_repository_ruleset.release_branches`、ファイル `ruleset_release_branches.tf`、Ruleset 名 `release branch protection` |
+| 06 `adr0004-compliant-tag-protection`、07 `negative-ruleset` | `tag_protection.tf` 一式（locals `tag_protection_targets`・`tag_protection_profile_defaults`・`tag_protection_preset`、`github_repository_ruleset.tag_protection`、Ruleset 名 `tag protection`）→ (a)、冒頭のコメントに「評価では worktree の `tag_protection.tf` の代わりに、下記を PR 後の内容として扱う」旨を明記 | － |
+| 07 `positive-secret`・`positive-file`・`positive-secret-applied` | `variables.tf`（`positive-secret` の節見出し「（PR 後、追加部分）」）→ (a) | variable `deploy_token`、locals `actions_secrets_preset`・`codeowners_preset`、`github_actions_secret.actions_secrets`・`github_actions_secret.deploy_token`、`github_repository_file.codeowners`、ファイル `actions_secrets.tf`・`codeowners.tf` |
+| 07 `negative-rename-applied` | `dependabot_security_updates.tf` とその resource（既存ファイルへの実差分）→ (a) | 新しいラベル `security_updates` |
+| 08 | plan テキストは定義を持たない（アドレスは worktree に実在する resource を指す）。`import-block.tf.example` は既存のアドレスを取り込み対象にするブロックだけで、新しい定義を持たない | ファイル `import.tf` |
+| 09 | 既存ファイルへの実差分（`positive-attribute`・`negative`・`boundary-preexisting`・`boundary-rewritten-preexisting`）は新しい名前を持たない | `positive-resource` の `deployment_branch_policy.tf`・`github_repository_deployment_branch_policy.sandbox`、`mixed-preexisting-and-new` の `sandbox_repository.tf`・`github_repository.sandbox` |
+
+結果: 重なった名前はすべて (a) で、(b) は0件。直した fixture は無い。
+
+### 全ケースの照合
+
+テストケース対応表の AC3 の全ケースと、境界の追加ケース `09-boundary-rewritten-preexisting`（ユーザー決定）の計40件。「実出力」は評価者の最終報告から取った。行番号のうち `.tf.example` のケースは fixture 上の行。観点9 の ✅・❌ には限界の併記が付いている（定義どおり）。「記録の検査」の (i) は適用後ケースで worktree (post) 配下の適用ファイルを読んだ記録、(ii) は書き込み・git 操作が無いこと、(iii) は Read・Bash（grep 等）の結果に `expected.md`・`verification.md`・reviewer README の行が無いこと。
+
+| 観点# | ケース | fixture | 期待 | 実出力 | 本リポ文書の引用 | 記録の検査 | 判定 |
+|---|---|---|---|---|---|---|---|
+| 1 | 01-positive | `01-moved-missing/positive.tf.example` | 観点1 blocker（`github_repository_ruleset.branch_protection` の `for_each` キー変更に `moved` なし） | 観点1 blocker（`branch_protection.tf:17`、キーの体系の変更に `moved` なし。出典は Refactoring・`moved` の解説）。他の観点は発火なし | なし | (ii)(iii) 確認済み | PASS |
+| 1 | 01-negative | `01-moved-missing/negative.tf.example` | 観点1 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 2 | 02-positive | `02-validation-missing/positive.tf.example` | 観点2 warning（`enforcement`・`allowed_merge_methods`） | 観点2 warning×2（`variables.tf:28` の `enforcement`、`:32` の `allowed_merge_methods`） | なし | (ii)(iii) 確認済み | PASS |
+| 2 | 02-negative | `02-validation-missing/negative.tf.example` | 観点2 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 3 | 03-positive | `03-lifecycle-coverage/positive.tf.example` | 観点3 warning（検出条件 (a)、`github_repository.this` の `ignore_changes` から `archived` を外す） | 観点3 warning（`repository.tf:120`、`archived` の変更無視を外している。出典は lifecycle） | なし | (ii)(iii) 確認済み | PASS |
+| 3 | 03-negative | `03-lifecycle-coverage/negative.tf.example` | 観点3 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 3 | 03-positive-same-type | `03-lifecycle-coverage/positive-same-type.tf.example` | 観点3 warning（検出条件 (b)、`github_repository.sandbox` が `github_repository.this` の `visibility`・`archived` の保護を欠く） | 観点3 warning（`sandbox_repository.tf:13`〔fixture 上の行〕、同旨。`this`〔`repository.tf:66`〕の保護は比較の相手として示し、出典は lifecycle） | なし | (ii)(iii) 確認済み | PASS |
+| 3 | 03-negative-same-type | `03-lifecycle-coverage/negative-same-type.tf.example` | 観点3 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 3 | 03-positive-same-type-applied | `03-lifecycle-coverage/positive-same-type-applied.diff`（適用後） | 観点3 warning（追加集合 A の `sandbox` を既存に数えない） | 観点3 warning（`sandbox_repository.tf:8`、比較の相手は `repository.tf:66` の `this`） | なし | (i) worktree (post) のルートの `*.tf` を対象にした grep の結果に適用ファイルの行 `sandbox_repository.tf:8:resource "github_repository" "sandbox" {`（`ls *.tf` にも同ファイル。main checkout に同名ファイルは無い）。(ii)(iii) 確認済み | PASS |
+| 3 | 03-negative-same-type-applied | `03-lifecycle-coverage/negative-same-type-applied.diff`（適用後） | 観点3 発火なし | 指摘なし（`this` と `sandbox` の `ignore_changes` が一致） | なし | (i) worktree (post) のルートの `*.tf` を対象にした grep の結果に適用ファイルの行 `sandbox_repository.tf:8:resource "github_repository" "sandbox" {`（`ls -la` にも同ファイル）。(ii)(iii) 確認済み | PASS |
+| 4 | 04-positive | `04-for-each-vs-count/positive.tf.example` | 観点4 warning（`count = length(keys(var.repositories))`） | 観点4 warning（fixture 9・13 行、出典は `count`・`for_each`） | なし | (ii)(iii) 確認済み | PASS |
+| 4 | 04-negative | `04-for-each-vs-count/negative.tf.example` | 観点4 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 4 | 04-boundary-count-one | `04-for-each-vs-count/boundary-count-one.tf.example` | 観点4 発火なし（`count = 条件 ? 1 : 0`） | 観点4 発火なし。対象外: 観点5 suggestion（参考記録） | なし | (ii)(iii) 確認済み | PASS |
+| 5 | 05-positive | `05-hardcoded-values/positive.tf.example` | 観点5 suggestion（`integration_id = 15368`） | 観点5 suggestion（fixture 50 行） | なし | (ii)(iii) 確認済み | PASS |
+| 5 | 05-negative | `05-hardcoded-values/negative.tf.example` | 観点5 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-positive-repository | `06-preset-merge/positive-repository.tf.example` | 観点6 blocker、不変条件3、出典は型制約 `optional` | 観点6 blocker（`variables.tf:14` の `visibility`）、不変条件3、出典は型制約 `optional`。指摘の文面に本リポ文書の名前・節番号・手続きの名前なし | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-positive-branch-protection | `06-preset-merge/positive-branch-protection.tf.example` | 観点6 blocker、不変条件1、出典は `null` と、型制約 `optional` または `merge` | 観点6 blocker×2（`branch_protection.tf:45` の `enforcement`、`:48` の `required_approving_review_count`）、不変条件1、出典は「Types and Values」の `null`・型制約 `optional`。`merge` の使用そのものは指摘していない（修正方針に null のフォールバックか、null を除いてから `merge` する形を示す） | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-positive-default-as-policy | `06-preset-merge/positive-default-as-policy.tf.example` | 観点6 blocker、不変条件2、出典は型制約 `optional` | 観点6 blocker（`variables.tf:13`）、不変条件2、出典は型制約 `optional` | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-negative-repository | `06-preset-merge/negative-repository.tf.example` | 観点6 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-negative-branch-protection | `06-preset-merge/negative-branch-protection.tf.example` | 観点6 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-adr0004-compliant-tag-protection | `06-preset-merge/adr0004-compliant-tag-protection.tf.example` | 観点6 発火なし | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-negative-local-convention | `06-preset-merge/negative-local-convention.tf.example` | いずれの観点も発火しない | 指摘なし | なし | (ii)(iii) 確認済み | PASS |
+| 6 | 06-negative-override-with-fallback | `06-preset-merge/negative-override-with-fallback.tf.example` | いずれの観点も発火しない（`merge` を理由にしない） | 指摘なし（null を除いてから `merge` で重ねている） | なし | (ii)(iii) 確認済み | PASS |
+| 7 | 07-positive-secret | `07-app-permission-boundary/positive-secret.tf.example` | 観点7 warning、Secrets（書き込み）・Metadata（読み取り） | 観点7 warning（`actions_secrets.tf:7` の `github_actions_secret.actions_secrets`）、Secrets（書き込み）・Metadata（読み取り）。付与状況との照合は呼び出し側で行う旨だけで、照合の結果・「境界外」の判定なし | なし | (ii)(iii) 確認済み | PASS |
+| 7 | 07-positive-file | `07-app-permission-boundary/positive-file.tf.example` | 観点7 warning、Contents（書き込み）・Metadata（読み取り） | 観点7 warning（`codeowners.tf:10` の `github_repository_file.codeowners`）、Contents（書き込み）・Metadata（読み取り）。照合の結果・「境界外」の判定なし | なし | (ii)(iii) 確認済み | PASS |
+| 7 | 07-negative-ruleset | `07-app-permission-boundary/negative-ruleset.tf.example` | 観点7 発火なし | 指摘なし（`branch_protection.tf` に変更前からの同型） | なし | (ii)(iii) 確認済み | PASS |
+| 7 | 07-positive-secret-applied | `07-app-permission-boundary/positive-secret-applied.diff`（適用後） | 観点7 warning、Secrets（書き込み）・Metadata（読み取り） | 観点7 warning（`actions_secrets.tf:13` の `github_actions_secret.deploy_token`）、Secrets（書き込み）・Metadata（読み取り）。照合の結果・「境界外」の判定なし | なし | (i) worktree (post) のルートの `*.tf` を対象にした grep の結果に適用ファイルの行 `actions_secrets.tf:13:resource "github_actions_secret" "deploy_token" {`（`ls` にも同ファイル。走査はルート直下の `*.tf` に限り、fixture 配下の例示を数えていない）。(ii)(iii) 確認済み | PASS |
+| 7 | 07-negative-rename-applied | `07-app-permission-boundary/negative-rename-applied.diff`（適用後） | 観点7・観点1 発火なし | 指摘なし（R の旧ラベルを変更前からの同型と数える。`moved` あり） | なし | (i) worktree (post) 配下の `dependabot_security_updates.tf` を Read（結果の23行目が新しいラベル `security_updates`、30〜33行目に `moved`）。main checkout の同名ファイルは読んでいない。出力も発火しない理由に R を挙げる。(ii)(iii) 確認済み | PASS |
+| 8 | 08-plan-positive-destroy | `08-plan-time-risk/plan-positive-destroy.txt` | 観点8 warning（`1 to destroy`、`github_repository_ruleset.branch_protection["github-config"]`） | 観点8 warning（同じアドレス、`1 to destroy`） | なし | (ii)(iii) 確認済み | PASS |
+| 8 | 08-plan-positive-replace | `08-plan-time-risk/plan-positive-replace.txt` | 観点8 warning（`-/+ resource`・`forces replacement`・`must be replaced`、`["gachanuma"]`） | 観点8 warning（同じアドレス、同じパターン。`name` の変更が置換を起こす） | なし | (ii)(iii) 確認済み | PASS |
+| 8 | 08-plan-negative-nochange | `08-plan-time-risk/plan-negative-nochange.txt` | 観点8 発火なし | 観点8 ✅ | なし | (ii)(iii) 確認済み | PASS |
+| 8 | 08-plan-empty | `08-plan-time-risk/plan-empty.txt` | 観点8 未評価（plan 出力未提供） | 観点8 未評価（plan 出力未提供。空の plan 出力を未提供と同じに扱った） | なし | (ii)(iii) 確認済み | PASS |
+| 8 | 08-import-with-replace | `08-plan-time-risk/import-block.tf.example` ＋ `plan-positive-replace.txt` | 観点8 blocker（取り込みと同時に置換され既存リソースが作り直される）。修正方針は、置換・破棄されない状態にしてから取り込むことだけ | 観点8 blocker（`import` ブロック、`["gachanuma"]`）、主旨一致。修正方針は「当該アドレスが同じ plan で置換・破棄されない状態にしてから取り込むこと。」だけ | なし | (ii)(iii) 確認済み | PASS |
+| 9 | 09-positive-attribute | `09-provider-deprecation/positive-attribute.diff` ＋ `validate-positive-attribute.txt` | 観点9 warning、`repository.tf:82` | 観点9 warning、`repository.tf:82`（`vulnerability_alerts`） | なし | (ii)(iii) 確認済み | PASS |
+| 9 | 09-negative | `negative.diff` ＋ `validate-negative.txt` | 観点9 発火なし | 観点9 ✅ | なし | (ii)(iii) 確認済み | PASS |
+| 9 | 09-positive-resource | `positive-resource.diff` ＋ `validate-positive-resource.txt` | 観点9 warning、`deployment_branch_policy.tf:1`（観点7 warning「未確定」は発火しうる） | 観点9 warning、`deployment_branch_policy.tf:1`。観点7 warning（必要権限: 未確定）は expected.md の記載どおり。対象外: 観点5 suggestion×2（参考記録） | なし | (ii)(iii) 確認済み | PASS |
+| 9 | 09-boundary-preexisting | `boundary-preexisting.diff` ＋ `validate-boundary-preexisting.txt` | 観点9 発火なし | 観点9 ✅（診断の位置が追加行に無い） | なし | (ii)(iii) 確認済み | PASS |
+| 9 | 09-boundary-rewritten-preexisting | `boundary-rewritten-preexisting.diff` ＋ `validate-boundary-rewritten-preexisting.txt` | 観点9 発火なし（同じ resource の削除行に同じ属性） | 観点9 ✅（同じ resource の削除行に `vulnerability_alerts`） | なし | (ii)(iii) 確認済み | PASS |
+| 9 | 09-mixed-preexisting-and-new | `mixed-preexisting-and-new.diff` ＋ `validate-mixed-preexisting-and-new.txt` | 観点9 warning、`sandbox_repository.tf:6` だけ（`repository.tf:82` は指摘しない） | 観点9 warning、`sandbox_repository.tf:6`（`has_downloads`）だけ。`repository.tf:82` は差分外として指摘しない。対象外: 観点5 suggestion（参考記録） | なし | (ii)(iii) 確認済み | PASS |
+| 9 | 09-unprovided | `positive-attribute.diff` だけ（validate 出力を渡さない） | 観点9 未評価（validate 出力未提供）、知識による指摘なし | 観点9 未評価（validate 出力未提供）、観点9 の指摘なし | なし | (ii)(iii) 確認済み。`validate-*.txt` の読み取りなし | PASS |
+
+40件すべて PASS。AC1 の関連の確認:
+
+- 全40件で、指摘の根拠・指摘内容・修正方針・総評に、本リポの ADR・設計仕様書・CLAUDE.md の引用や、それらが定める手続きの名前は無い（出力を文書名・節番号・手続きの語で走査し、一致したのは禁止事項を守った旨の記述と fixture 名 `adr0004-compliant-tag-protection` だけだった）。worktree の `.tf` には設計記録の節を参照するコメントがあり（例: `repository.tf` の `lifecycle` のコメント）、評価者はそれを読んだが、指摘に使っていない。
+- 観点7 の陽性（`07-positive-secret`・`07-positive-file`・`07-positive-secret-applied`、`09-positive-resource` の観点7）で、付与済み権限との照合の結果・「境界外」の判定・blocker は無く、必要権限の列挙と、付与状況との照合は呼び出し側で行う旨だけを出した。
+
+### 対象観点以外の発火（参考記録）
+
+いずれも定義に反する判定ではない。
+
+| ケース | 発火 | 内容 | 定義との関係 |
+|---|---|---|---|
+| 04-boundary-count-one | 観点5 suggestion | `repository = "github-config"` の直書き | 観点5 の「観点間の境界」が対象に挙げるリポジトリ名固有の文字列に当たる |
+| 09-positive-resource | 観点7 warning（必要権限: 未確定） | 静的表に無い `github_repository_deployment_branch_policy` の新規使用 | 観点7 の「表に無い型の扱い」どおり。expected.md 09 の「他の観点の発火」に記載があり、照合上も一致 |
+| 09-positive-resource | 観点5 suggestion×2 | `repository = "sandbox-repo"`、`environment_name = "production"` | リポジトリ名固有の文字列、環境依存値に当たる |
+| 09-mixed-preexisting-and-new | 観点5 suggestion | `name = "sandbox-repo"` | リポジトリ名固有の文字列に当たる |
+
+1回目の評価（定義 a9ecd60）との違い（参考）: `04-positive` で、1回目は観点4 warning と同時に観点1 blocker（worktree の `for_each` から `count` への切替に `moved` が無い）を出したが、最終パスは「`.tf.example` に `+`/`-` の行が無く、観点1 の抽出の対象が無い」として観点1 を出さなかった。expected.md 04 は観点1 に触れず、照合の対象外。差分の形でない入力で観点1 の検出条件3（`+`/`-` の行からの切替の抽出）をどう読むかが、評価者によって揺れた。`09-positive-resource` の観点5 は、1回目の3件（`name = "release/*"` を含む）から最終パスで2件になった。
+
+### 観点9 の実測
+
+J3（resource 単位の非推奨でも validate が警告を出す）と J7（人間向け出力が同じ要約の警告を集約するか）の実測、fixture 09 の validate 出力の取得手順、判定の限界の実測は、「## 観点9 の実測記録（#103）」節を参照。
+
+### 実機補強
+
+実機未取得。実装セッションのエージェント一覧に表示された `terraform-design-reviewer` の説明文が改訂前の定義のもの（観点9 を含まない観点の列挙）で、改訂後の定義が読み込まれることを確かめられなかったため（`subagent_type` の名前解決が main checkout の改訂前の定義を指す可能性がある）。実機起動による補強は、既存記録の観点1 陽性1ケース（#20 時点）に留まる。
+
+### PASS しなかったケースと直した経緯
+
+1. **1回目の評価**（定義 a9ecd60、同じ条件の14体、40件）: PASS 38件。PASS しなかったのは次の2件。
+   - `08-import-with-replace`: 発火・blocker・主旨は期待どおりだったが、修正方針の欄に、構成側を実リソースの現状値に合わせるか `lifecycle.ignore_changes` 等で吸収するという収束のさせ方を書き、検証すべき振る舞い（収束のさせ方を指示しない）に反した。原因は、指摘テーブルが修正方針の列を埋めることを求める一方で、格上げ時の文言に修正方針の書き方が無く、評価者が warning の指摘文言テンプレ（`lifecycle.ignore_changes` の見直し）から補ったこと。`expected.md` 08 にも修正方針の照合項目が無かった。
+   - `06-positive-branch-protection`: 発火・blocker・不変条件1 は期待どおりだったが、出典に `merge`・`null` を挙げ、当時の `expected.md` が求めていた型制約 `optional` を欠いた。原因は、定義の入出力例「陽性（不変条件 1）」が、`merge` を使わない形（既定値なしの `optional` の値をそのまま使う）にも出典 `merge`・`null` を当てていたこと（評価者は入出力例どおりに書いた）。
+2. **是正（2232cdc）**: 観点8 の格上げの修正方針を「当該アドレスが同じ plan で置換・破棄されない状態にしてから取り込んでください。」とだけ書くと定め、構成と実リソースのどちらを変えて解消するかは指示しない（PR の作成者が決める）と書いた。`expected.md` 08 の陽性3 に同じ照合項目を足した。観点6 の入出力例「陽性（不変条件 1）」の出典を形ごとに分けた（既定値なしの `optional` の値をそのまま使う形は型制約 `optional` と `null`、上書き側の null を除かずに `merge` で重ねる形は `merge` と `null`）。
+3. **再試験**（定義 2232cdc、08 の5件と 06 の8件を新しい評価者で）: 08 の5件は期待どおりだった（格上げの修正方針は、置換・破棄されない状態にしてから取り込むことだけ）。06 で次の問題が出た。
+   - `06-positive-repository`: 発火・blocker・不変条件3・出典（型制約 `optional`）は期待どおりだったが、指摘内容に、worktree の `variables.tf` のコメントが参照する設計記録の節番号を書き、修正方針でリポジトリ固有の手続きの名前に触れた（本リポ文書の引用に当たる）。`06-negative-override-with-fallback`（発火なし）も、出典の欄で同じ手続きの名前に触れた。原因は、定義がリポジトリ固有の規約文書を判定の根拠にしないとだけ定め、指摘の説明に使うことを止めていなかったこと。
+   - `06-positive-branch-protection`: 発火・blocker・不変条件1 は期待どおりで、出典に「Types and Values」の `null` を挙げたうえで、直し方として null を除いてから `merge` する形を示し、`merge` を出典にした（型制約 `optional` は挙げなかった）。どの一般的な出典を補助に挙げるかは指摘が示す直し方の形に依るため、`expected.md` 06 が型制約 `optional` だけを求めていたことは、一般的な出典のどれを選ぶかまで固定し、判定の根拠の一般性とは無関係の不一致を生んでいた。
+4. **是正（a06c48d）**: 定義の「文脈としての参照」に、指摘内容・修正方針・総評にもリポジトリ固有の規約文書の名前・節番号や、それらが定める経路・手続きの名前を書かないこと、worktree のファイルのコメントがそれらを参照していても判定の根拠にも指摘の説明にも使わないことを加えた。`expected.md` 06 の陽性2 の「根拠の示し方」を、`null` を必須とし、型制約 `optional` か `merge` のいずれかを認める形に改めた。
+5. **最終パス**: 全ケースに共通する枠（「文脈としての参照」）を変えたため、全40件を a06c48d で評価し直した（上記「全ケースの照合」）。40件すべて PASS。
+
+### #103 で削除・改名した fixture と改めた定義の節名
+
+- **改名**（旧名 → 新名。いずれも `fixtures/06-preset-merge/`）: `adr0004-violation-value-category.tf.example` → `positive-default-as-policy.tf.example`、`adr0004-violation-ledger.tf.example` → `negative-override-with-fallback.tf.example`、`adr0004-violation-naming.tf.example` → `negative-local-convention.tf.example`。改名の直後、内容を書き直す前に `git diff --cached -M --name-status` で3件とも R100 と表示されることを確かめた（コミット 5499efb）。書き直した後は、squash マージの履歴で改名として検出されない場合がある
+- **削除**（`fixtures/06-preset-merge/`、いずれも `.tf.example`）: `adr0004-compliant-ledger`・`adr0004-compliant-import`・`adr0004-violation-import`・`adr0004-compliant-nesting`・`adr0004-violation-nesting`・`adr0004-violation-locals-name`・`adr0004-violation-visibility`・`adr0004-violation-profile`
+- **名前を維持**: `adr0004-compliant-tag-protection.tf.example`（ADR 0009 と既存記録がこの名前で参照するため。内容は一般判定の陰性として使い、前提のコメントを改めた）
+- **改めた定義の節名**: 各観点の「実現形の参照先」は「判定の根拠」（一般的な出典）へ置き換えた。観点6 の「既知の未適用事項」は削除した
+
+### 既存記録の読み方（J1）
+
+本ファイルの既存記録（冒頭から「## 結論」節まで）は、#103 で削除・改名した fixture（上記）、#103 で内容を改めた fixture（01・02・03・06・07）と expected.md（02〜08。01 も「期待する判定根拠」の節を足した）、改めた定義の節名（「実現形の参照先」「既知の未適用事項」）を含め、改訂前の版を指す。改訂前の版は git 履歴で参照する。例えば、既存の照合表の観点3 陽性・観点7 陽性の期待 blocker は、改訂後の warning と異なる。
+
+### 観点7 の静的表の是正（J4）
+
+- `github_repository_dependabot_security_updates` の行を「Administration RW + Dependabot Alerts RW」から「Administration（書き込み）」へ直した（表の誤り。J4 の仮定どおり）。provider v6.12.1 の実装はこの型で `/repos/{owner}/{repo}/automated-security-fixes` の GET・PUT・DELETE だけを呼び、GitHub Apps permissions reference では、これらのエンドポイントは「Administration」の節（read・write・write）にだけあり、「Dependabot alerts」の節には無い。App の権限の記述（CLAUDE.md §3）と App permission scope は変えていない。
+- ほかの行も、provider v6.12.1 の各 resource の実装が呼ぶエンドポイントを permissions reference とエンドポイントのドキュメントで引き直し、権限名を GitHub Apps の権限名にそろえた: `Actions: Secrets` → Secrets、`Actions: Variables` → Variables、`github_repository_environment` の Environments → Administration（書き込み）・Actions（読み取り）、`github_team_repository` に Members（organization の権限。読み取り）を追加、`github_issue_label` に「または Pull requests」を追加、`github_repository_dependabot_security_updates`・`github_issue_label` を除く各行に Metadata（読み取り）を追加。アクセスの表記は Access 列に合わせて「書き込み」「読み取り」とし、導出元の URL を現行のパスへ張り替えた。行ごとの照合の出典は、コミット 1b6acc7 の本文にある。
+
+### 結論
+
+#103 の改訂後の定義（a06c48d）で、テストケース対応表 AC3 の全39ケースと境界の追加ケース `09-boundary-rewritten-preexisting` の計40件すべてで、対象観点の判定が期待と一致した（**代理試験**、各1回）。全ケースで、指摘の根拠と説明に本リポの ADR・設計仕様書・CLAUDE.md の引用は無かった。適用後ケース4件で worktree (post) 配下の適用ファイルを読んだこと、14体すべてで書き込み・git 操作が無く、ツールの結果に期待値の行が無いことを、評価者の記録で確かめた。実機 `terraform-design-reviewer` 起動による補強は取得していない。
