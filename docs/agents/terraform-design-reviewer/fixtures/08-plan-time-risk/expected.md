@@ -34,6 +34,7 @@ reviewer に `git diff` と `<HCP plan 出力テキスト>` を渡したとき�
 - **重大度**: blocker
 - **検出パターン**: `-/+ resource` および `forces replacement` および `must be replaced`（対象アドレス `github_repository_ruleset.branch_protection["gachanuma"]` が `import {}` ブロックの `to` と一致）
 - **指摘文言の主旨**: import 対象アドレスが同じ plan で replace されている。import は既存のリソースをそのまま state に取り込む操作だが、この plan では取り込みと同時に置換されるため、取り込み対象の既存リソースが作り直される。
+- **修正方針**: 当該アドレスが同じ plan で置換・破棄されない状態にしてから取り込むことだけを求める。構成と実リソースのどちらを変えて解消するか（例: 構成を実リソースの現状値に合わせる、`lifecycle.ignore_changes` で吸収する）は指示しない。
 
 ## 期待する判定根拠
 

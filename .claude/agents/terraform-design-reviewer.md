@@ -255,7 +255,7 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
   - 陽性（不変条件 3）:
     - 入力（`## git diff`）: `variables.tf` の `variable "repositories"` の object 型で、`visibility = string` を `visibility = optional(string, "public")` へ変える差分。
     - 期待出力: 観点 6 blocker「必須だった `visibility` の宣言を既定値付きの optional にしており、宣言漏れのリポが既定値で作られる（不変条件 3、Terraform 公式 optional）」。
-  - 陽性（不変条件 1）: 揃えた値を置く `locals` の値の代わりに、インスタンスごとの入力の値（既定値なしの `optional`）をそのまま合成の結果や resource の引数に使う（または上書き側の null を除かずに `merge` で重ねる） → 値を指定しないインスタンスで揃えた値が null で消える → 観点 6 blocker（不変条件 1、Terraform 公式 `merge`・`null`）。
+  - 陽性（不変条件 1）: 揃えた値を置く `locals` の値の代わりに、インスタンスごとの入力の値（既定値なしの `optional`）をそのまま合成の結果や resource の引数に使う（または上書き側の null を除かずに `merge` で重ねる） → 値を指定しないインスタンスで揃えた値が null で消える → 観点 6 blocker（不変条件 1。出典は形に応じて挙げる: 既定値なしの `optional` の値をそのまま使う形は Terraform 公式の型制約 `optional` と `null`、上書き側の null を除かずに `merge` で重ねる形は Terraform 公式 `merge` と `null`）。
   - 陽性（不変条件 2）: すべてのインスタンスで揃えると決めた値を、インスタンスごとの入力の属性の既定値（例: `optional(bool, true)`）に置き、resource がその入力を参照する → 観点 6 blocker（不変条件 2、Terraform 公式 optional）。
   - 陰性（null を除いて重ねる合成）: インスタンスごとの入力（既定値なしの `optional`）を、揃えた値に `merge` と null の除去で重ね、値を指定しないインスタンスは揃えた値のままになる → 発火しない（`merge` を使うこと自体は発火条件にしない）。
   - 陰性（揃えた値の追加）: 揃えた値を `locals` の1か所に足し、resource から直接参照する → 発火しない。
@@ -317,7 +317,7 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
   4. `forces replacement`
 - **重要度**: warning（既定）／ blocker（`import` ブロック連携時、後述）
 - **指摘文言テンプレ（warning）**: 「HCP plan 出力に destroy/replace 兆候が検出されました（パターン: `<該当パターン>`）。対象アドレス: `<address>`。`moved` ブロックの追加・`lifecycle.ignore_changes` の見直し・`import` ブロックとの整合の検討を行ってください。」
-- **`import` ブロック連携整合（blocker 格上げ条件）**: PR 内に `import {}` ブロックがあり、かつ plan 出力に当該アドレスの `replace`/`destroy` が出ている場合は **blocker** に格上げする。指摘文言: 「`import {}` でアドレス `<address>` を import 対象としていますが、同アドレスが plan 出力で `<replace|destroy>` されています。import は既存のリソースをそのまま state に取り込む操作ですが、この plan では取り込みと同時に置換・破棄されるため、取り込み対象の既存リソースが作り直されます（destroy の場合は破棄されます）。」
+- **`import` ブロック連携整合（blocker 格上げ条件）**: PR 内に `import {}` ブロックがあり、かつ plan 出力に当該アドレスの `replace`/`destroy` が出ている場合は **blocker** に格上げする。指摘文言: 「`import {}` でアドレス `<address>` を import 対象としていますが、同アドレスが plan 出力で `<replace|destroy>` されています。import は既存のリソースをそのまま state に取り込む操作ですが、この plan では取り込みと同時に置換・破棄されるため、取り込み対象の既存リソースが作り直されます（destroy の場合は破棄されます）。」修正方針の欄には「当該アドレスが同じ plan で置換・破棄されない状態にしてから取り込んでください。」とだけ書き、構成と実リソースのどちらを変えて解消するか（構成を実リソースの現状値に合わせる、`lifecycle.ignore_changes` で吸収する、など）は指示しない。どちらで解消するかは PR の作成者が決める。
 - **plan 出力未提供時**: 総評セクションに「観点 8: 未評価（plan 出力未提供）」と明示出力する（エラー扱いとしない）。
 - **入出力例**:
   - 陽性 (destroy): plan 出力に `1 to destroy` を含む → 観点 8 warning 発火（対象アドレスと修正方針を提示）。
