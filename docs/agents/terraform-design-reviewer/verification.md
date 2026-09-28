@@ -473,7 +473,7 @@ resource "github_repository" "zz_tmp_check" {
 
 - **結果**: 属性単位の非推奨の警告は、属性の値が validate の時点で決まる場合（リテラル、リテラルだけから決まる local value）に限り出て、値が input variable や `each.value` に由来する場合は出なかった。resource 単位の非推奨の警告（`Deprecated Resource`）は、引数をすべて input variable にしても出た。Terraform 公式ドキュメント `terraform validate` は、validate が与えられた変数の値や state によらずに構成を検査すると説明しており、変数由来の値は validate の時点では決まらない。
 - **定義への反映**: 観点9 に「判定の限界」を置き、値が validate の時点で決まらない属性は警告が出ない場合に新規使用を検出できないこと、総評の「✅」は警告が出ない新規使用が無いことまでは示さないことを書き、評価した場合の総評にこの限界を併記するようにした。fixture 09 の入力はいずれもリテラルの値で、この限界に当たらない。
-- **解消の扱い**: 観点9 の情報源に provider schema（非推奨の印）を加えてこの限界を解消する件は、別 Issue で扱う。
+- **解消の扱い**: 観点9 の情報源に provider schema（非推奨の印）を加えてこの限界を解消する件は、別 Issue（#109）で扱う。
 - **後始末**: 一時ファイル `zz_tmp_deprecation_check.tf` を削除し、`git status --short` に `.tf` の変更・未追跡の `.tf` が無いことを確認した。
 
 ## 照合表（#103 再試験、2026-09-28）
