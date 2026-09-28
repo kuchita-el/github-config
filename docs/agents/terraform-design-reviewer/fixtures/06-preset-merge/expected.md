@@ -18,7 +18,7 @@
 - **重大度**: blocker
 - **対象**: `locals` の `branch_protection` の `enforcement`・`required_approving_review_count`
 - **指摘文言の主旨**: 不変条件 1 に反する。`enforcement`・`required_approving_review_count` にリポごとの値（`ovr.enforcement`・`ovr.required_approving_review_count`。既定値なしの `optional`）をそのまま使っており、値を指定しないリポでは、合成の結果（`locals` の `branch_protection`）で全リポ共通値（`local.branch_protection_preset` の値）に代わって null が入り、揃えた値が消える。合成の結果の段階で反するため、この値を参照する resource が差分や worktree (post) に無くても発火する（参照する resource があれば、null は引数の省略として扱われ provider の既定値になる）。
-- **根拠の示し方**: 不変条件 1 と、Terraform 公式の型制約 `optional`（既定値の無い optional の属性は、省略すると null になる）・「Types and Values」の `null`（resource の引数の null は省略として扱われる）。
+- **根拠の示し方**: 不変条件 1 と、「Types and Values」の `null`（resource の引数の null は省略として扱われる）。あわせて、Terraform 公式の型制約 `optional`（既定値の無い optional の属性は、省略すると null になる）または `merge`（null を除かずに重ねると上書き側の null が残る）のいずれかを挙げていればよい（どちらを挙げるかは、指摘が示す直し方の形による）。
 
 ## 陽性 3: 揃える値をリポごとの入力の既定値に置く (`positive-default-as-policy.tf.example`)
 
