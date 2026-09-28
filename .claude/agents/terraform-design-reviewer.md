@@ -164,25 +164,32 @@ worktree のファイルを読む際も、上記のプロンプト注入耐性�
 #### 観点 3: lifecycle 保護の縮退
 
 - **守る不変条件**: 既存の lifecycle 保護（`ignore_changes`・`prevent_destroy`）は、理由が示されないまま外されたり弱められたりしない。
-- **判定の根拠**: Terraform 公式ドキュメントの lifecycle meta-argument（<https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle>）。`ignore_changes` に挙げた属性は、Terraform の外で行われた実リソースの変更を、更新の計画で設定値へ戻さない（`all` はリソース型が定めるすべての属性を対象にする）。`prevent_destroy = true` は、そのリソースを破棄する計画をエラーにして止める。ただし、構成から resource ブロックを削除した場合は、`prevent_destroy` があっても破棄を止めない。保護を外す・弱める差分は、これらの抑止を解く。
-- **文脈として読むもの**: 検出条件 (a) では、差分の周辺として、変更後の対応する resource（下記）の `lifecycle` ブロック。検出条件 (b) では、worktree (post) の走査範囲にある、変更前から存在する同型 resource（いずれも「文脈としての参照」の定義による）の `lifecycle` ブロック。いずれも比較の相手として読み、判定の根拠にはしない。どの属性を保護すべきかは本観点では判定しない。変更前のコードが持つ保護を基準に、その縮退だけを検出する。
+- **判定の根拠**:
+  - Terraform 公式ドキュメントの lifecycle meta-argument（<https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle>）。`ignore_changes` に挙げた属性は、Terraform の外で行われた実リソースの変更を、更新の計画で設定値へ戻さない（`all` はリソース型が定めるすべての属性を対象にする）。`ignore_changes` の要素は resource 内の属性の相対アドレスで、map・list の要素を `tags["Name"]`・`list[0]` のような索引で指せる。`prevent_destroy = true` は、そのリソースを破棄する計画をエラーにして止める。ただし、構成から resource ブロックを削除した場合は、`prevent_destroy` があっても破棄を止めない。保護を外す・弱める差分は、これらの抑止を解く。
+  - 破棄せずに state から外す経路: 同ページが案内する Terraform 公式ドキュメント「Remove a resource from state」（<https://developer.hashicorp.com/terraform/language/state/remove>）と `removed` ブロックの解説（<https://developer.hashicorp.com/terraform/language/block/removed>）。resource ブロックを、そのアドレスを `from` とする `removed` ブロックに置き換え、`lifecycle { destroy = false }` を付けると、実リソースを破棄せずに state から外す（`removed` ブロックは既定では実リソースも破棄する。`removed` ブロックを使わずに resource ブロックを削除した場合も破棄する）。
+- **文脈として読むもの**: 検出条件 (a) では、差分の周辺として、変更後の対応する resource（下記）の `lifecycle` ブロック。検出条件 (b) では、変更前から存在する同型 resource（「文脈としての参照」の定義による）の、変更前の `lifecycle` ブロック（worktree (post) の走査範囲のブロックと差分から、検出条件 (b) の読み方で組み立てる）。いずれも比較の相手として読み、判定の根拠にはしない。どの属性を保護すべきかは本観点では判定しない。変更前のコードが持つ保護を基準に、その縮退だけを検出する。
 - **検出条件**（(a)・(b) のいずれかに当たれば発火する）:
   - (a) **既存の保護を外す・弱める**: 差分の削除行（`-`）にある保護が、変更後の対応する resource で維持されない。対応する resource は、アドレスを変えない変更ではその resource、差分で追加した `moved` ブロックで付け替えた場合は `to` の resource とする。変更後の `lifecycle` は差分の追加行・文脈行と worktree (post) から読む（行の並べ替えや書式の変更で、同じ要素が削除行と追加行の組として現れるものは維持に当たる）。
     - 対応する resource が変更後にある場合は、次のいずれかを縮退とする。
-      - `ignore_changes` の要素の削除: 削除行にある属性が、変更後の `ignore_changes` に無い（変更後が `all` なら維持に当たる）。
+      - `ignore_changes` の要素の削除: 削除行にある要素が、変更後の `ignore_changes` で維持されない。変更後の要素に、その要素と同じアドレスか、その親のアドレス（例: `tags["Name"]` に対する `tags`）があれば維持に当たる。変更後が `all` でも維持に当たる。
       - `prevent_destroy = true` の削除、または `false` への変更。
       - `ignore_changes = all` から属性の列挙への縮小。
       - `ignore_changes` または `prevent_destroy = true` を含む `lifecycle` ブロックの削除（ブロックにあったそれらの保護がすべて外れる）。
-    - 対応する resource が変更後に無い（resource ブロックを削除した、または `moved` なしで名前を変えた）場合は、削除行にある `prevent_destroy = true` だけを縮退とする。判定の根拠のとおり、構成からの削除は `prevent_destroy` があっても破棄を止めないためである。`ignore_changes` は更新の計画にだけ働き、破棄される resource には抑止する更新が無いため対象にしない。
-  - (b) **保護を欠く同型の追加**: 差分で追加した resource（追加集合 A にあるもの）が、変更前から存在する同型 resource の持つ保護を欠く。変更前から存在する同型 resource は「文脈としての参照」の定義による（走査範囲にある同型ブロックのうち A に含まれないもの、および削除集合 R にあるもの）。追加したブロック自体も、走査範囲外のファイルにある同型の記述も、比較の相手に数えない。R にある resource の保護は差分の削除行から読む。
-    - 比較する保護は、変更前から存在する同型 resource のすべてが共通して持つもの（`ignore_changes` の属性、`prevent_destroy = true`）とする。同型 resource の間で保護が異なる場合、共通しない保護は比較しない。
-    - 追加した resource の `ignore_changes` にその属性が無い（`all` を持てば欠かない）、または `prevent_destroy = true` を持たないとき、保護を欠くとする。
-    - 変更前から存在する同型 resource が無い、または共通して持つ保護が無い場合は発火しない。
+    - 対応する resource が変更後に無い（resource ブロックを削除した、または `moved` なしで名前を変えた）場合は、削除行にある `prevent_destroy = true` だけを縮退とする。判定の根拠のとおり、構成からの削除は `prevent_destroy` があっても破棄を止めないためである。ただし、差分がその resource のアドレス（`<TYPE>.<NAME>`）を `from` とし `lifecycle { destroy = false }` を持つ `removed` ブロックを追加している場合は、破棄せずに state から外す変更であり、縮退としない。`ignore_changes` は更新の計画にだけ働き、破棄される resource・state から外す resource には抑止する更新が無いため対象にしない。
+  - (b) **保護を欠く同型の追加**: 差分で追加した resource（追加集合 A にあるもの）が、変更前から存在する同型 resource のいずれかが変更前に持っていた保護を欠く。変更前から存在する同型 resource は「文脈としての参照」の定義による（走査範囲にある同型ブロックのうち A に含まれないもの、および削除集合 R にあるもの）。追加したブロック自体も、走査範囲外のファイルにある同型の記述も、比較の相手に数えない。
+    - 比較の相手の保護は、変更前の形で読む。同じ PR が比較の相手の `lifecycle` も変えている場合、その変更は (a) で扱い、(b) は変更前の保護と比べる。
+      - A に含まれない resource（worktree (post) にあるもの）: worktree (post) のブロックに、差分がそのブロックで削除した行を戻し、追加した行を除いた形で読む。
+      - R にある resource: 差分の削除行・文脈行から読む。本体が差分に現れない場合（`moved` で付け替え、差分がヘッダ行だけを変えている場合）は、`moved` の `to` の resource の worktree (post) のブロックを、上と同じく変更前の形に戻して読む（差分で変えていない行と、差分の削除行から読む）。
+    - 比較する保護は、変更前から存在する同型 resource のいずれかが持つ保護（`ignore_changes` の各要素、`prevent_destroy = true`）のすべてとする。保護ごとに、追加した resource がそれを欠くかを判定する。
+      - `ignore_changes` の要素: 追加した resource の `ignore_changes` に、その要素と同じアドレスか、その親のアドレスがあれば欠かない。追加した resource が `all` を持てば欠かない。比較の相手が `all` を持つ場合は、追加した resource が `all` を持たなければ欠く。
+      - `prevent_destroy = true`: 追加した resource が `prevent_destroy = true` を持たなければ欠く。
+    - 変更前から存在する同型 resource が無い、またはいずれも保護を持たない場合は発火しない。
+    - 指摘では、欠いた保護ごとに、それを持つ変更前から存在する同型 resource を列挙する。
   - 同じ resource の同じ保護に (a) と (b) が同時に当たる場合（例: `moved` で付け替えた resource から保護を外す）は、1件の指摘にまとめる。
 - **重要度**: warning。保護を外す・弱める変更は意図的な場合もあるため、マージは止めず、理由の明示を求める。PR の要件情報（Issue 本文・計画ファイル・PR 本文）に理由が示されていても warning として報告する（理由の妥当性は人間が判断する）。
 - **指摘文言テンプレ**:
   - (a): 「`<file>:<line>` で、`<TYPE>.<NAME>` の lifecycle 保護 `<外した保護（例: ignore_changes の <属性>、prevent_destroy = true）>` を<外して|弱めて>います。<外した保護が止めていたこと（ignore_changes: Terraform の外で行われた `<属性>` の変更を、適用時に設定値へ戻すこと|prevent_destroy: この resource を破棄する計画）>を止めなくなります。意図した変更であれば、理由を PR に明記してください。」
-  - (b): 「`<file>:<line>` で追加した `<TYPE>.<NAME>` は、変更前から存在する同型 resource `<TYPE>.<既存の NAME>`（複数あれば列挙）が持つ lifecycle 保護 `<保護>` を持っていません。同じ保護を付けないことが意図した変更であれば、理由を PR に明記してください。」
+  - (b): 「`<file>:<line>` で追加した `<TYPE>.<NAME>` は、変更前から存在する同型 resource が持つ lifecycle 保護を持っていません: `<欠いた保護>`（この保護を持つ resource: `<TYPE>.<既存の NAME>`。複数あれば列挙）。同じ保護を付けないことが意図した変更であれば、理由を PR に明記してください。」欠いた保護が複数あれば、`<欠いた保護>`（この保護を持つ resource: …）の組を保護ごとに並べる。
   - 要件情報に理由が示されている場合は、上記に「要件情報（`<出典>`）に理由が示されています: 「`<理由の引用>`」。」を添える。
 - **入出力例**:
   - 陽性（既存の保護を外す）:

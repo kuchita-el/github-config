@@ -22,8 +22,9 @@
 - **観点 #**: 3（検出条件 (b)）
 - **重大度**: warning
 - **対象**: `sandbox_repository.tf` で追加した `github_repository.sandbox`
-- **判定の経過**: worktree (post) に置いた `github_repository.sandbox` は差分の `+resource` ヘッダで作る追加集合 A にあるため、変更前から存在する同型 resource に数えない。変更前から存在する同型 resource は `repository.tf` の `github_repository.this` だけで、その保護 `ignore_changes = [visibility, archived]` を追加した `github_repository.sandbox` が欠くため発火する。
+- **判定の経過**: worktree (post) に置いた `github_repository.sandbox` は差分の `+resource` ヘッダで作る追加集合 A にあるため、変更前から存在する同型 resource に数えない。変更前から存在する同型 resource は `repository.tf` の `github_repository.this` だけで（差分は `repository.tf` を変えていないため、worktree (post) のブロックがそのまま変更前の形）、その保護 `ignore_changes = [visibility, archived]` を追加した `github_repository.sandbox` が欠くため発火する。
 - **指摘文言の主旨**: 陽性 2 と同じ。
+- **根拠の示し方**: 陽性 2 と同じ。
 
 ## 陰性 1: 同じ保護を持つ同型の追加 (`negative-same-type.tf.example`)
 
@@ -45,3 +46,5 @@
 発火するケースの指摘は、観点 3 の「判定の根拠」に挙げた次の一般的な出典に基づく（リポジトリ固有の規約文書を根拠にしない）。
 
 - Terraform 公式ドキュメント lifecycle meta-argument（`ignore_changes`・`prevent_destroy`）: <https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle>
+- Terraform 公式ドキュメント「Remove a resource from state」: <https://developer.hashicorp.com/terraform/language/state/remove>（resource を破棄せずに state から外す差分を検出条件 (a) から除く根拠。本 fixture のケースはこれに当たらない）
+- Terraform 公式ドキュメント `removed` ブロックの解説: <https://developer.hashicorp.com/terraform/language/block/removed>（同上）

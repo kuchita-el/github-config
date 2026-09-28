@@ -4,8 +4,7 @@
 # 差分イメージ（before → after）:
 #   repository_preset に allow_update_branch = true を追加
 #   github_repository.this に allow_update_branch = local.repository_preset.allow_update_branch を追加
-# 本 PR の変更は上記の2か所だけ。lifecycle ブロックは main のまま。下記以外の既存ファイル
-# （variables.tf / terraform.tfvars）も main のまま。
+# 本 PR の変更は上記の2か所だけ。下記以外の既存ファイル（variables.tf / terraform.tfvars）は main のまま。
 
 # --- repository.tf（PR 後、locals の repository_preset の変更部分） ---
 locals {
