@@ -75,7 +75,8 @@ Agent(
     ## plan 出力（任意）
     <HCP plan 出力テキスト>
     ## validate 出力（任意）
-    <`terraform validate -json` の出力（ルート以外で実行した場合は先頭に「実行ディレクトリ: <パス>」の1行）>
+    実行ディレクトリ: <リポジトリのルート以外で実行した場合だけ書く。ルートで実行した場合はこの行を省く>
+    <`terraform validate -json` の出力（JSON）>
     ## 要件情報
     <Issue/PR 本文の要点>
   """
