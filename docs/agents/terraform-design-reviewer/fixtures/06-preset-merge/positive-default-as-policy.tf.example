@@ -1,0 +1,21 @@
+# Fixture: github_repository に allow_update_branch を加える PR。
+# PR の目的: allow_update_branch を全管理リポで true に揃える（所有者の方針）。全管理リポの実値は既に true。
+# 本 PR の変更は下記の2か所だけ。下記以外の既存ファイル（terraform.tfvars 等）は main のまま。
+
+# --- variables.tf（PR 後、variable "repositories" の type の repository 属性） ---
+    repository = optional(object({
+      archived     = optional(bool)
+      description  = optional(string)
+      homepage_url = optional(string)
+      topics       = optional(set(string), [])
+
+      # PR で追加。
+      allow_update_branch = optional(bool, true)
+    }), {})
+
+# --- repository.tf（PR 後、github_repository.this への追加行） ---
+resource "github_repository" "this" {
+  # ...（main と同じ引数・dynamic "security_and_analysis" ブロック・lifecycle は省略）...
+
+  allow_update_branch = each.value.repository.allow_update_branch
+}

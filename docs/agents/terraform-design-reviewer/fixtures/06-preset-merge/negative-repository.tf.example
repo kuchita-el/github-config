@@ -1,6 +1,6 @@
-# Fixture (negative, repository): 現行 repository.tf / variables.tf と同じ構造での属性追加。
+# Fixture (negative, repository): repository.tf の全リポ共通値への属性追加。
 # PR の内容: 全リポ共通値に allow_update_branch を足し、resource から直接参照する。
-# 全管理リポの実値は既に true であり、PR の plan は No changes（取り込み時の食い違いなし）。
+# 全管理リポの実値は既に true であり、PR の plan は No changes。
 # 期待: 観点 6 は発火しない。
 
 # --- repository.tf（PR 後） ---

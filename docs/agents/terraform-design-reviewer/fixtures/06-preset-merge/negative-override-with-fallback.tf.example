@@ -1,0 +1,47 @@
+# Fixture: gachanuma だけ Wiki を有効にする PR。
+# 理由: gachanuma は利用者向けの確率計算の解説を Wiki で公開しており、恒常的に必要。
+# リポごとの has_wiki の入力を足し、値を指定したリポだけ repository_preset の has_wiki を上書きする。
+# 本 PR の変更は下記の3ファイルだけ。下記以外の既存ファイルは main のまま。
+
+# --- variables.tf（PR 後、variable "repositories" の type の repository 属性） ---
+    repository = optional(object({
+      archived     = optional(bool)
+      description  = optional(string)
+      homepage_url = optional(string)
+      topics       = optional(set(string), [])
+
+      # PR で追加。
+      has_wiki = optional(bool)
+    }), {})
+
+# --- repository.tf（PR 後、locals の追加ブロックと github_repository.this の変更行） ---
+locals {
+  # PR で追加。
+  repository_settings = {
+    for repo, cfg in var.repositories : repo => merge(
+      local.repository_preset,
+      { for k, v in { has_wiki = cfg.repository.has_wiki } : k => v if v != null },
+    )
+  }
+}
+
+resource "github_repository" "this" {
+  # ...（main と同じ引数・dynamic "security_and_analysis" ブロック・lifecycle は省略）...
+
+  # PR で変更（before: has_wiki = local.repository_preset.has_wiki）。
+  has_wiki = local.repository_settings[each.key].has_wiki
+}
+
+# --- terraform.tfvars（PR 後、gachanuma エントリ） ---
+  gachanuma = {
+    visibility = "public"
+    profile    = "app"
+
+    repository = {
+      has_wiki = true
+    }
+    branch_protection = {
+      status_check_contexts       = ["lint", "typecheck", "test", "build", "e2e"]
+      status_check_integration_id = 15368 # GitHub Actions
+    }
+  }

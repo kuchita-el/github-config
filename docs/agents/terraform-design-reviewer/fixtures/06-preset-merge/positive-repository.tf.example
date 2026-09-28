@@ -1,44 +1,33 @@
-# Fixture (positive, repository): 値の置き場所と上書き経路が3点で逸脱。
-# 期待: 観点 6 が blocker で発火。
+# Fixture: variables.tf の variable "repositories" で、visibility を既定値 "public" を持つ optional に変える PR。
+# 元: variables.tf の variable "repositories"
+# PR の目的: 管理対象に加えるリポの多くが public のため、terraform.tfvars のエントリで visibility の記述を省けるようにする。
+#
+# 差分イメージ（before → after）:
+#   before: visibility = string
+#   after:  visibility = optional(string, "public")
+# 本 PR の変更は上記の1か所だけ。下記以外の既存ファイル（repository.tf / terraform.tfvars 等）は main のまま。
+# terraform.tfvars の既存エントリは、いずれも visibility を宣言したまま変えない。
 
+# --- variables.tf（PR 後、variable "repositories" の type。description と validation は main のままのため省略） ---
 variable "repositories" {
   type = map(object({
-    # 逸脱 (c): visibility が optional 化されている（リポごとの宣言が必須の項目）。
     visibility = optional(string, "public")
+    profile    = string
 
-    # 逸脱 (b): 全リポで揃える値（false）を持つ属性を、リポごとの上書きフィールドとして
-    # default なしで置いている。未指定のリポでは null が渡り、provider 既定値が暗黙に適用される。
-    has_wiki = optional(bool)
+    repository = optional(object({
+      archived     = optional(bool)
+      description  = optional(string)
+      homepage_url = optional(string)
+      topics       = optional(set(string), [])
+    }), {})
 
-    has_discussions = optional(bool, false)
+    branch_protection = optional(object({
+      status_check_contexts       = optional(list(string), [])
+      status_check_integration_id = optional(number)
+    }), {})
+
+    actions_permissions = optional(object({
+      patterns_allowed = optional(set(string), [])
+    }), {})
   }))
-}
-
-locals {
-  # 逸脱 (a): locals の preset と merge() + null 除去で合成している。
-  repository_security_preset = {
-    has_wiki        = false
-    has_discussions = false
-  }
-
-  repository_settings = {
-    for repo, ovr in var.repositories : repo => merge(
-      local.repository_security_preset,
-      { for k, v in ovr : k => v if v != null },
-    )
-  }
-}
-
-resource "github_repository" "this" {
-  for_each = var.repositories
-
-  name       = each.key
-  visibility = each.value.visibility
-
-  has_wiki        = local.repository_settings[each.key].has_wiki
-  has_discussions = local.repository_settings[each.key].has_discussions
-
-  lifecycle {
-    ignore_changes = [visibility, archived]
-  }
 }

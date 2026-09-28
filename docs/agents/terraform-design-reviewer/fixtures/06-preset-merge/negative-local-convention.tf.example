@@ -1,0 +1,45 @@
+# Fixture: public の管理リポに、release/ で始まるブランチの削除と force push を禁止する Ruleset を加える PR。
+# 本 PR の変更は下記のファイルの追加だけ。下記以外の既存ファイル（repository.tf / branch_protection.tf /
+# tag_protection.tf / variables.tf / terraform.tfvars 等）は main のまま。
+# 管理リポに既存の release ブランチ用 Ruleset は無く、plan は public リポの分の create のみ。
+
+# --- ruleset_release_branches.tf（PR で新規追加） ---
+locals {
+  # 全リポで揃える値。
+  release_branch_protection_preset = {
+    name        = "release branch protection"
+    target      = "branch"
+    enforcement = "active"
+    ref_include = ["refs/heads/release/*"]
+    ref_exclude = []
+
+    deletion         = true
+    non_fast_forward = true
+  }
+
+  # Ruleset を適用するリポ。GitHub Free では private リポで Ruleset を使えないため public に絞る。
+  release_branch_protection_targets = {
+    for repo, cfg in var.repositories : repo => cfg if cfg.visibility == "public"
+  }
+}
+
+resource "github_repository_ruleset" "release_branches" {
+  for_each = local.release_branch_protection_targets
+
+  name        = local.release_branch_protection_preset.name
+  repository  = each.key
+  target      = local.release_branch_protection_preset.target
+  enforcement = local.release_branch_protection_preset.enforcement
+
+  conditions {
+    ref_name {
+      include = local.release_branch_protection_preset.ref_include
+      exclude = local.release_branch_protection_preset.ref_exclude
+    }
+  }
+
+  rules {
+    deletion         = local.release_branch_protection_preset.deletion
+    non_fast_forward = local.release_branch_protection_preset.non_fast_forward
+  }
+}

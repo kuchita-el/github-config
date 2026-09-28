@@ -1,6 +1,6 @@
-# Fixture (negative, branch_protection): 現行 branch_protection.tf と同じ構造での属性追加。
+# Fixture (negative, branch_protection): branch_protection.tf の全リポ共通値への属性追加。
 # PR の内容: 全リポ共通値に required_linear_history を足し、resource から直接参照する。
-# 全管理リポの実値は既に true であり、PR の plan は No changes（取り込み時の食い違いなし）。
+# 全管理リポの実値は既に true であり、PR の plan は No changes。
 # 期待: 観点 6 は発火しない。
 
 # --- branch_protection.tf（PR 後） ---

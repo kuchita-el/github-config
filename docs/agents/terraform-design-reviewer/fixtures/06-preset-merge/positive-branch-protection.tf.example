@@ -1,5 +1,5 @@
 # Fixture (positive, branch_protection): 未指定の per-repo 値が全リポ共通値を null で上書きする。
-# per-repo の上書き（enforcement / required_approving_review_count）を例外台帳への登録なしに足し、
+# per-repo の上書き（enforcement / required_approving_review_count）を足し、
 # しかも null フォールバックを欠く。
 # 期待: 観点 6 が blocker で発火。
 
