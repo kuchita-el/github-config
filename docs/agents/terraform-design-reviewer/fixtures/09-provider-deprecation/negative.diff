@@ -1,0 +1,14 @@
+# PR の内容: repository.tf の github_repository.this に allow_update_branch を追加する。
+
+diff --git a/repository.tf b/repository.tf
+index 47a9a61..78bea76 100644
+--- a/repository.tf
++++ b/repository.tf
+@@ -87,6 +87,7 @@ resource "github_repository" "this" {
+   has_discussions        = local.repository_preset.has_discussions
+   has_issues             = local.repository_preset.has_issues
+   delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
++  allow_update_branch    = false
+
+   allow_merge_commit          = local.repository_preset.allow_merge_commit
+   allow_rebase_merge          = local.repository_preset.allow_rebase_merge

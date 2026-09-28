@@ -1,0 +1,36 @@
+# Fixture: 検証用のリポジトリ sandbox-repo を管理対象に加えるため、sandbox_repository.tf を新規追加して
+# github_repository.sandbox を定義する PR。
+# 本 PR の変更は下記のファイルの追加だけ。下記以外の既存ファイルは main のまま。
+
+# --- sandbox_repository.tf（PR で新規追加） ---
+locals {
+  sandbox_repository = {
+    name       = "sandbox-repo"
+    visibility = "private"
+  }
+}
+
+resource "github_repository" "sandbox" {
+  name       = local.sandbox_repository.name
+  visibility = local.sandbox_repository.visibility
+
+  allow_auto_merge       = local.repository_preset.allow_auto_merge
+  has_wiki               = local.repository_preset.has_wiki
+  has_projects           = local.repository_preset.has_projects
+  has_discussions        = local.repository_preset.has_discussions
+  has_issues             = local.repository_preset.has_issues
+  delete_branch_on_merge = local.repository_preset.delete_branch_on_merge
+
+  allow_merge_commit          = local.repository_preset.allow_merge_commit
+  allow_rebase_merge          = local.repository_preset.allow_rebase_merge
+  allow_squash_merge          = local.repository_preset.allow_squash_merge
+  squash_merge_commit_title   = local.repository_preset.squash_merge_commit_title
+  squash_merge_commit_message = local.repository_preset.squash_merge_commit_message
+
+  lifecycle {
+    ignore_changes = [
+      visibility,
+      archived,
+    ]
+  }
+}

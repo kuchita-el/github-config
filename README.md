@@ -236,16 +236,47 @@ Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit`
 
 `.tf` 変更を含む PR では、汎用 `dev-workflow:code-reviewer`（既存）に加えて Terraform 固有設計レビュー用の `terraform-design-reviewer`（本リポ `.claude/agents/` 配下）を併用する。詳細は [`docs/agents/terraform-design-reviewer/README.md`](docs/agents/terraform-design-reviewer/README.md) を参照。
 
-`terraform-design-reviewer` は `Bash` 権限を持たないため、呼び出し側で事前に `git diff` を取得してプロンプトに含める。起動例（Claude Code 内）:
+**担い手の分担**:
+
+- `terraform-design-reviewer` は、一般的な Terraform 設計の妥当性（観点 1〜9）を、Terraform・provider・GitHub の公式ドキュメント等の一般的な出典に基づいて判定する。本リポ固有の規約への準拠は判定しない。
+- 本リポ固有の規約への準拠の確認は `dev-workflow:code-reviewer` が担う。呼び出し側は、その呼び出しプロンプトに次の参照先を入れる。
+  - [設計仕様書](docs/design/terraform-structure.md) §3〜§7（§4 例外台帳を含む）
+  - CLAUDE.md §2（既存リポの取り込み）・§3（App permission scope）
+  - [ADR 0001](docs/adr/0001-repository-resource-structure.md) 決定 §3（`lifecycle.ignore_changes` の保護対象属性）
+- 両 reviewer の出力は呼び出し側の統合段でまとめる。`terraform-design-reviewer` の観点 7（差分が要する provider 権限の列挙）は必要な権限の列挙までを行い、付与状況との照合は行わない。統合段で、観点 7 が列挙した権限を CLAUDE.md §3 が定める App の付与権限と突き合わせ、付与権限を超える場合は CLAUDE.md §3 に従い App permission scope の拡張を別 Issue とする。観点 7 の列挙は resource 型の単位で行い、引数の値によって追加で呼ぶエンドポイントの権限（属性単位の条件。provider ドキュメントの resource ページの注記にあるものなど）は列挙しないため、統合段の突き合わせもその範囲に限られる。
+
+**validate 出力の取得**: `terraform-design-reviewer` は観点 9（provider 非推奨の新規使用）を、呼び出し側が渡す `terraform validate -json` の出力で判定する。初期化と環境変数は CI の validate ジョブ（`.github/workflows/terraform.yml`）と同じで、出力だけを `-json` にする。
+
+- PR 適用後（HEAD）の作業ディレクトリで実行する。未初期化の作業ディレクトリでは、先に `terraform init -backend=false` で初期化する（HCP Terraform の workspace に接続せずに provider を導入する）。
+- `GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`GITHUB_APP_PEM_FILE` の3変数を設定して `terraform validate -json` を実行する。`providers.tf` の `app_auth {}` がこの3変数を読むため、設定しないと validate が失敗する。validate は provider の API（GitHub API）に接続しないため、値はダミーでよい。
+- 出力（JSON）を `## validate 出力` にそのまま貼る。リポジトリのルート以外のディレクトリで実行した場合は、見出しの後の最初の行（JSON の前）に `実行ディレクトリ: <リポジトリのルートからの相対パス>`（例: `実行ディレクトリ: infra`）の1行を置き、次の行から JSON を貼る。この行が無ければ、reviewer はリポジトリのルートで実行したものとみなす（読み方の定めは reviewer 定義の「入力」節）。
+- validate 出力を渡さない場合と、`-json` 形式でない出力（人間向けの出力）や validate が失敗した出力を渡した場合は、観点 9 は未評価になる。また、属性の値が validate の時点で決まらない場合（input variable や `each.value` に由来する場合など）は、非推奨の属性を新たに使っても validate が警告を出さないことがあり、その新規使用は観点 9 では検出できない（reviewer 定義の観点 9 の「判定の限界」）。
+
+**起動例（Claude Code 内）**: `terraform-design-reviewer` は `Bash` 権限を持たないため、呼び出し側で事前に `git diff` と validate 出力を取得してプロンプトに含める。
 
 ```bash
-# 呼び出し側で事前に取得
+# 呼び出し側で事前に取得（PR 適用後の作業ディレクトリで実行する）
 git diff main...HEAD -- '*.tf' '*.tfvars' > /tmp/tf-diff.txt
+terraform init -backend=false   # 未初期化の場合のみ
+export GITHUB_APP_ID=1 GITHUB_APP_INSTALLATION_ID=1 GITHUB_APP_PEM_FILE=placeholder   # ダミー値でよい
+terraform validate -json > /tmp/tf-validate.json
 ```
 
 ```
 # 汎用レビュアー（既存）と並列起動
-Agent(subagent_type: "dev-workflow:code-reviewer", prompt: "...")
+Agent(
+  subagent_type: "dev-workflow:code-reviewer",
+  prompt: """
+    <通常のレビュー依頼（ベースブランチ・差分・要件情報）>
+
+    ## 本リポ固有の規約への準拠の確認
+    差分が次の規約に準拠しているかを確認する。
+    - docs/design/terraform-structure.md §3〜§7（§4 例外台帳を含む）
+    - CLAUDE.md §2（既存リポの取り込み）
+    - CLAUDE.md §3（App permission scope）
+    - docs/adr/0001-repository-resource-structure.md 決定 §3（lifecycle.ignore_changes の保護対象属性）
+  """
+)
 Agent(
   subagent_type: "terraform-design-reviewer",
   prompt: """
@@ -257,6 +288,10 @@ Agent(
     ## plan 出力（任意）
     <HCP plan 出力テキスト。未提供なら空欄>
 
+    ## validate 出力（任意）
+    実行ディレクトリ: <リポジトリのルート以外で実行した場合だけ書く。ルートで実行した場合はこの行を省く>
+    <`/tmp/tf-validate.json` の中身（JSON）をそのまま貼り付け。未提供なら空欄>
+
     ## 要件情報
     <Issue/PR 本文の要点>
   """
@@ -266,7 +301,14 @@ Agent(
 両 reviewer は補完関係。重複指摘抑止ルール:
 
 - 観点境界は `terraform-design-reviewer` の reviewer 定義に明文化（観点 5: Terraform 固有定数に限定）。
-- 同一行・同主旨の指摘が両 reviewer から出た場合は片方を採用する（重複は二重表示しない）。
+- 汎用 reviewer に上記の参照先を渡して準拠の確認を委ねるため、次の観点は準拠の指摘と同じ行に重なりうる。重なった場合は、下記の同一行・同主旨のルールに従う（観点 7 を除く）。
+  - 観点 2（`variable` の `validation` ブロック不足）: 入力の検証の定め（設計仕様書 §7 の `profile` の validation など）
+  - 観点 3（lifecycle 保護の縮退）: 保護する属性の定め（ADR 0001 決定 §3）
+  - 観点 6（既定値の合成と単一の置き場所）: 揃える値の置き場所や上書きの経路の定め（設計仕様書 §4・§7）
+  - 観点 7（差分が要する provider 権限の列挙）: App に与える権限の定め（CLAUDE.md §3）。観点 7 の列挙は、汎用 reviewer の指摘と重なっても捨てずに両方を残す（統合段で付与権限と突き合わせる入力になるため。同一行・同主旨のルールの例外）
+  - 観点 8（plan-time リスク検出）: 既存リソースの取り込みの手順の定め（CLAUDE.md §2）
+- 観点 1, 4, 9 は Terraform 固有の設計の観点であり、汎用 reviewer の汎用の観点（コード重複等）とは重ならない。準拠の指摘と同じ行に重なった場合も、下記の同一行・同主旨のルールに従う。
+- 同一行・同主旨の指摘が両 reviewer から出た場合は片方を採用する（重複は二重表示しない。観点 7 の列挙は上記の例外）。
 
 ---
 

@@ -2,10 +2,9 @@
 # 元: variables.tf の variable "repositories"
 # 期待: 観点 2 は発火しない。
 #
-# PR の内容: branch_protection の enforcement / allowed_merge_methods を例外台帳に登録し、
-# per-repo のフィールドを追加する（使用リポの tfvars 宣言と、resource 側の null フォールバック参照は本フィクスチャでは省略）。
-# 下記以外の既存ファイルは main のまま。README.md は下記の「README.md（PR 後）」の状態になる
-# （評価では worktree の README.md の代わりに、下記の抜粋を PR 後の README.md として扱う）。
+# PR の内容: branch_protection に per-repo の enforcement / allowed_merge_methods フィールドを追加する
+# （per-repo の値を指定するリポの tfvars 宣言と、resource 側の null フォールバック参照は本フィクスチャでは省略）。
+# 下記以外の既存ファイルは main のまま。
 
 # --- variables.tf（PR 後） ---
 variable "repositories" {
@@ -24,11 +23,11 @@ variable "repositories" {
       status_check_contexts       = optional(list(string), [])
       status_check_integration_id = optional(number)
 
-      # 新規追加（例外台帳登録属性）: enforcement の上書き。文字列の列挙値（active / evaluate / disabled）
+      # 新規追加: enforcement の上書き。文字列の列挙値（active / evaluate / disabled）
       # を取りうる。下記の validation で列挙制約を表現している。
       enforcement = optional(string)
 
-      # 新規追加（例外台帳登録属性）: merge_method の上書き。["squash","merge","rebase"] のサブセットを
+      # 新規追加: merge_method の上書き。["squash","merge","rebase"] のサブセットを
       # 取りうる。下記の validation で列挙制約を表現している。
       allowed_merge_methods = optional(list(string))
     }), {})
@@ -47,7 +46,7 @@ variable "repositories" {
       for r in values(var.repositories) :
       contains(["distribution", "infra", "app", "local_config"], r.profile)
     ])
-    error_message = "profile must be one of: distribution, infra, app, local_config (ADR 0004 §7)."
+    error_message = "profile must be one of: distribution, infra, app, local_config (docs/design/terraform-structure.md §7)."
   }
 
   # 列挙値 validation: enforcement.
@@ -70,9 +69,3 @@ variable "repositories" {
     error_message = "branch_protection.allowed_merge_methods values must be a subset of [squash, merge, rebase]."
   }
 }
-
-# --- README.md（PR 後、「例外台帳」節の表） ---
-# | 設定種別 | 属性 | 元の区分 | 理由 | 登録した Issue / PR | 使用リポとリポごとの理由 | 見直しの条件 |
-# |---|---|---|---|---|---|---|
-# | branch_protection | enforcement | 全リポ共通値 | 外部の自動化が main へ直接 push する運用のリポがあり、Ruleset を評価モードに保つ必要が恒常的にある。類型や共通値の見直しでは表せない | #998（所有者承認済み） | dependabot-triage-action: リリース用の外部ボットが main へ直接 push する | 外部ボットが PR 経由の運用に変わったら削除する |
-# | branch_protection | allowed_merge_methods | 全リポ共通値 | 履歴を残すため merge commit を要するリポがあり、類型や共通値の見直しでは表せない | #998（所有者承認済み） | claude-shared-skills: 取り込み元の履歴を merge commit で保つ | 取り込み元の運用が変わったら削除する |

@@ -1,0 +1,35 @@
+{
+  "format_version": "1.0",
+  "valid": true,
+  "error_count": 0,
+  "warning_count": 1,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "Argument is deprecated",
+      "detail": "Use the github_repository_vulnerability_alerts resource instead. This field will be removed in a future version.",
+      "address": "github_repository.this",
+      "range": {
+        "filename": "repository.tf",
+        "start": {
+          "line": 82,
+          "column": 33,
+          "byte": 4062
+        },
+        "end": {
+          "line": 82,
+          "column": 37,
+          "byte": 4066
+        }
+      },
+      "snippet": {
+        "context": "resource \"github_repository\" \"this\"",
+        "code": "  vulnerability_alerts        = true",
+        "start_line": 82,
+        "highlight_start_offset": 32,
+        "highlight_end_offset": 36,
+        "values": []
+      }
+    }
+  ]
+}

@@ -1,4 +1,6 @@
-# Fixture (ADR 0004 / 設定種別の追加): タグ保護を管理対象に加える PR。
+# Fixture: タグ保護を管理対象に加える PR。
+# 前提: tag_protection.tf は本 PR で新規追加するファイルで、PR 前には無い。評価では worktree の
+# tag_protection.tf の代わりに、下記を PR 後の tag_protection.tf として扱う。
 # 下記以外の既存ファイル（repository.tf / branch_protection.tf / variables.tf / terraform.tfvars）は main のまま。
 # 管理リポに既存のタグ用 Ruleset は無く、plan は public リポの分の create のみ。
 

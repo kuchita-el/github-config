@@ -1,9 +1,9 @@
-# Fixture (negative, branch_protection): 現行 branch_protection.tf と同じ構造での属性追加。
+# Fixture (negative, branch_protection): branch_protection.tf の全リポ共通値への属性追加。
 # PR の内容: 全リポ共通値に required_linear_history を足し、resource から直接参照する。
-# 全管理リポの実値は既に true であり、PR の plan は No changes（取り込み時の食い違いなし）。
+# 全管理リポの実値は既に true であり、PR の plan は No changes。
 # 期待: 観点 6 は発火しない。
 
-# --- branch_protection.tf（PR 後） ---
+# --- branch_protection.tf（PR 後、抜粋。示していない locals の値〔branch_protection_profile_defaults・branch_protection_targets〕・引数・要素・ブロックは main のまま） ---
 locals {
   branch_protection_preset = {
     name        = "main protection"
@@ -25,13 +25,12 @@ locals {
     required_review_thread_resolution = true
     allowed_merge_methods             = ["squash"]
 
-    strict_required_status_checks_policy = true
-    do_not_enforce_on_create             = false
+    do_not_enforce_on_create = false
   }
 }
 
 resource "github_repository_ruleset" "branch_protection" {
-  for_each = var.repositories
+  for_each = local.branch_protection_targets
 
   name        = local.branch_protection_preset.name
   repository  = each.key
@@ -72,7 +71,7 @@ resource "github_repository_ruleset" "branch_protection" {
             integration_id = each.value.branch_protection.status_check_integration_id
           }
         }
-        strict_required_status_checks_policy = local.branch_protection_preset.strict_required_status_checks_policy
+        strict_required_status_checks_policy = local.branch_protection_profile_defaults[each.value.profile].strict_required_status_checks_policy
         do_not_enforce_on_create             = local.branch_protection_preset.do_not_enforce_on_create
       }
     }
