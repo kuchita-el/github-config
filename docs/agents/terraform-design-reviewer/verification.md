@@ -155,6 +155,8 @@ PR #31 マージ後の Claude Code セッションで `subagent_type: "terraform
 
 ## 観点9 の実測記録（#103）
 
+凡例: 本節と「照合表（#103 再試験、2026-09-28）」節の J1〜J7・決定1〜9・Task N・テストケース対応表・検証すべき振る舞いは、#103 の実装プラン（リポジトリ外）の項目名で、要旨は #103 の PR 本文と Issue #103 のコメント（決定の要旨: <https://github.com/kuchita-el/github-config/issues/103#issuecomment-5856725382>）にある。ユーザー決定に付けた (a)〜(c) はユーザーに示した選択肢の記号で、選ばれた内容は各所の括弧内に書いた。
+
 - **実施日**: 2026-09-28
 - **版**: Terraform v1.15.6、provider `integrations/github` v6.12.1（`.terraform.lock.hcl` と一致）
 - **手順**: worktree ルートで `mise exec -- terraform init -backend=false -plugin-dir=/home/kuchita/Development/github-config/.terraform/providers -lockfile=readonly -input=false` を実行し（追跡ファイル・`.terraform.lock.hcl` に変更なし、`.terraform/` に `terraform.tfstate` なしを確認）、以降 `mise exec -- terraform validate -no-color`（人間向け）・`mise exec -- terraform validate -json`（JSON）を、各ケースにつき一時編集 → 実行 → 記録 → `git restore` / 一時ファイル削除の順で単独コマンドとして実行した。
@@ -228,13 +230,13 @@ as shown above.
 
 （`snippet` フィールドは記録を簡潔にするため省略。両診断とも `filename`・`start.line` を個別に持つことは確認済み。）
 
-J7 が仮定と異なった（人間向け出力が集約する）ため、Task 5a はここで停止する。`validate-mixed-preexisting-and-new.txt` は未作成（4. のユーザー回答後に選ばれた形で作る）。`mixed-preexisting-and-new.diff` は形式非依存のため保存済み。
+J7 が仮定と異なった（人間向け出力が集約する）ため、実測はここでいったん止めた。この時点では `validate-mixed-preexisting-and-new.txt` を作らず、ユーザーの回答後に選ばれた形で作ることにした。`mixed-preexisting-and-new.diff` は形式に依存しないため、この時点で保存した。
 
 ### ユーザー回答後の取り直し（2026-09-28）
 
-J7 不成立を受け、ユーザーは選択肢 (a)（観点9 の入力と README 併用節 (d) の取得手順を `terraform validate -json` の出力に変える）を選んだ。理由: 人間向け出力（`-no-color`）は同じ要約 `Argument is deprecated` の警告を1件に集約し、変更前からの使用と新規使用が同居すると新規使用側の位置が消えるため（上記の実測）。選択肢 (b)（人間向け出力のまま限界として明記する）は、新規使用の見落としが手順を変えても構造的に残る点が採らなかった理由。
+J7 不成立を受け、ユーザーは選択肢 (a)（観点9 の入力と、ルート README の併用節〔「PR レビュー時の reviewer 併用」〕にある「validate 出力の取得」の手順を `terraform validate -json` の出力に変える）を選んだ。理由: 人間向け出力（`-no-color`）は同じ要約 `Argument is deprecated` の警告を1件に集約し、変更前からの使用と新規使用が同居すると新規使用側の位置が消えるため（上記の実測）。選択肢 (b)（人間向け出力のまま限界として明記する）は、新規使用の見落としが手順を変えても構造的に残る点が採らなかった理由。
 
-この選択に伴い、fixture 09 の全ケース（陽性・属性／陰性／境界／陽性・resource／組み合わせ）の validate 出力を `mise exec -- terraform validate -json`（各ケースとも 2. と同じ一時編集を作り直した状態、単独コマンド）で取り直し、`validate-*.txt`（ファイル名は変えず、内容を `-json` の出力に置換。組み合わせケースのみ新規に `validate-mixed-preexisting-and-new.txt` を作成）とした。各ケースとも、作り直した状態の `git diff`（または `git diff --no-index /dev/null <一時ファイル>`）が保存済みの `.diff`（先頭のコメント行を除く）と一致することを確認した。
+この選択に伴い、fixture 09 の全ケース（陽性・属性／陰性／境界／陽性・resource／組み合わせ）の validate 出力を `mise exec -- terraform validate -json`（各ケースとも上記「各ケースの実測」と同じ一時編集を作り直した状態、単独コマンド）で取り直し、`validate-*.txt`（ファイル名は変えず、内容を `-json` の出力に置換。組み合わせケースのみ新規に `validate-mixed-preexisting-and-new.txt` を作成）とした。各ケースとも、作り直した状態の `git diff`（または `git diff --no-index /dev/null <一時ファイル>`）が保存済みの `.diff`（先頭のコメント行を除く）と一致することを確認した。
 
 `-json` 出力（`diagnostics[].range.filename`・`range.start.line`）は次のとおり:
 
@@ -480,6 +482,8 @@ resource "github_repository" "zz_tmp_check" {
 
 Issue #103（判定の根拠を一般的な出典へ移し、観点3・6・7 を改め、観点9 を加えた改訂）の後に、全ケースを代理試験で評価した。本節の照合表は、定義 a06c48d（`.claude/agents/terraform-design-reviewer.md`）で全ケースを評価し直した最終パスの結果である。それより前の評価で PASS しなかったケースと直した経緯は、下記「PASS しなかったケースと直した経緯」に記す。
 
+最終パスの後に、観点1 の判定の根拠に挙げた Terraform 公式ドキュメントの出典名の表記だけを、「Refactoring」から現行のページ題名「Refactor modules」に合わせた（定義・reviewer README・`expected.md` 01。URL は変えていない）。判定・期待に影響しないため評価し直しておらず、下表の実出力の「Refactoring」は評価者の出力のままである。
+
 ### 検証方法
 
 - **評価者**: sonnet の汎用 subagent（**代理実行**。記録上のモデルは `claude-sonnet-5`）。観点1〜9 に1体ずつ（観点どうしは独立のため並列）、観点9 の未提供ケースに別の1体、適用後ケース4件に1件ずつ1体の計14体。各ケース1回。
@@ -489,7 +493,7 @@ Issue #103（判定の根拠を一般的な出典へ移し、観点3・6・7 を
 - **適用後ケースを worktree に適用して1件ずつ評価した理由**: 実運用では worktree が PR 適用後で、差分が追加した resource ブロック自体を含む。「変更前から存在する同型 resource」を判定に使う観点3 (b)・観点7 で、追加集合 A を既存と数えないこと（観点7 は、走査範囲をルートモジュールに限り fixture 配下の例示を数えないことも）と、削除集合 R を既存に含めることを、追加ブロックが実在する状態で確かめるため。worktree を書き換えるため、他の評価者と並列にせず、観点ごとの評価がすべて終わってから1件ずつ行った。各ケースの前に `git apply --check` が通り、`git apply` の後の `git status --short` に当該ファイルだけが現れ（新規ファイルは未追跡、`negative-rename-applied` は ` M dependabot_security_updates.tf`）、評価後に元に戻して `.tf` の変更・未追跡の `.tf` が無いことを確かめた。`git apply --check` は4件とも通り、fixture の作り直しは無かった。評価者には、worktree に適用したことを伝えていない。
 - **観点9 の未提供ケースを別の評価者で評価した理由**: 同じ評価者が直前に `validate-positive-attribute.txt` で同じ属性の非推奨の警告を読んでいると、評価者自身の知識による指摘が出ないことを試せないため。この評価者には `positive-attribute.diff` だけを渡し、`fixtures/09-provider-deprecation/` の `validate-*.txt` を読むことを禁じた（記録上、呼び出しは Read 4件〔評価者への共通指示、定義2回、`positive-attribute.diff`〕だけで、`validate-*.txt` を読んでいない）。なお、定義の観点9 の入出力例に同じ属性・同じ位置（`vulnerability_alerts`、`repository.tf:82`）の診断が載っており、評価者は同じ属性の非推奨を定義から知った状態だった（出力でも言及している）。それでも validate 出力が無いときは指摘しないことが示され、期待の判定は変わらない。
 - **記録の検査**: 評価者の自己申告（出力中の実行ログ）は証拠にせず、評価者の記録（transcript）のツール呼び出しと結果で確かめた。(i) 適用後ケースで worktree (post) 配下の適用ファイルを読んだこと（下記「全ケースの照合」の「記録の検査」の列）。(ii) 書き込み・git 操作が無いこと: 14体の呼び出しは Read 101件・Bash 32件・最終報告の受け渡し14件だけで、Write・Edit 等は0件。Bash 32件はいずれも `cd` と `ls`・`find`・`grep`・`sed -n`・`cat`・`head`・`sort`・`echo`（区切りの表示）による読み取りで、ファイルへのリダイレクト（`2>/dev/null`・`2>&1` を除く）と git は0件。(iii) 期待値が漏れていないこと: 9件の `expected.md`・`verification.md`・reviewer README の各行（空白を詰めて12文字以上）を禁止行とし、全ツール結果の各行と照合した。一致した行はすべて、その結果を返したファイル自身（定義、fixture の `.tf.example`・`.diff`・`validate-*.txt`、worktree の `repository.tf`・`variables.tf`）の行で、禁止ファイルから来た行は0行。禁止ファイルを読んだ呼び出しも0件。自己申告の実行ログには記録と食い違うもの（前置していない `cd` を書く、失敗した呼び出しを省く、読んだ順が異なる）があり、自己申告が証拠にならないことを示している。
-- **文脈**: 14体とも、プロジェクトの CLAUDE.md（App に付与した権限の記述を含む）が文脈に載っていた（AC1 の「規約文書が文脈に載っている状態でも」の前提を満たす）。
+- **文脈**: 14体とも、プロジェクトの CLAUDE.md（App に付与した権限の記述を含む）が文脈に載っていた（規約文書が文脈に載っている状態でも指摘に引用しないこと〔AC1 の振る舞い面〕を確かめる前提を満たす）。
 - **ツール環境**: 評価者は `Grep`・`Glob` を持たず、`Read` と読み取りの `Bash` を使った。reviewer 実機（`tools: Read, Grep, Glob`）とはツール構成が異なる（代理試験の限界）。観点4 の評価者は、最終報告の受け渡しが成功した後に、API の使用上限の通知で終了した。照合には記録上の最終報告を使った。
 - **PASS 条件**: 対象観点の発火の有無・観点番号・重要度が `expected.md` と一致すること。加えて、観点7 は列挙した権限が「列挙する権限」と一致すること、観点9 は指摘のファイル・行が一致すること、観点6 は指摘の根拠が各ケースの「根拠の示し方」の不変条件の番号と出典を含み、`merge` の使用そのものを指摘しないこと、観点8 の格上げケースは修正方針が収束のさせ方（構成と実リソースのどちらを変えるか）を指示しないこと。観点9 を評価したケースの総評に付く限界の併記は定義どおりで、不一致にしない。適用後ケースは (i)〜(iii) を、それ以外のケースは (iii) を確かめられた場合に限り PASS とする。対象観点以外の発火は、`expected.md` に記載があれば照合し、無ければ参考記録とする。
 - **抜き取り確認**: 評価者の出力はドラフトとして扱い、各観点で2〜3件の主張（指摘の行番号、比較の相手、列挙した権限、plan のアドレス、validate の診断の位置）を fixture・worktree・定義と照らした。判定に影響する齟齬は無かった（軽微なもの: `03-positive-same-type` の指摘箇所の行番号を、新規ファイルの行でなく fixture 上の行で書いた）。

@@ -13,7 +13,7 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 
 | # | 観点 | 重大度 | 守る不変条件の要旨 | 判定の根拠（一般的な出典） |
 |---|---|---|---|---|
-| 1 | `moved` ブロック不在 | blocker | 既存リソースがアドレスの付け替えだけで破棄・再作成されない | Terraform 公式 [Refactoring](https://developer.hashicorp.com/terraform/language/modules/develop/refactoring)・[`moved` ブロック](https://developer.hashicorp.com/terraform/language/block/moved) |
+| 1 | `moved` ブロック不在 | blocker | 既存リソースがアドレスの付け替えだけで破棄・再作成されない | Terraform 公式 [Refactor modules](https://developer.hashicorp.com/terraform/language/modules/develop/refactoring)・[`moved` ブロック](https://developer.hashicorp.com/terraform/language/block/moved) |
 | 2 | `variable` の `validation` 不足 | warning | 入力値の暗黙の制約に反する入力が plan 前に拒否される | Terraform 公式 [input variables](https://developer.hashicorp.com/terraform/language/values/variables) の custom validation rules・[`language/validate`](https://developer.hashicorp.com/terraform/language/validate) の「Input variable validation」 |
 | 3 | lifecycle 保護の縮退 | warning | 既存の lifecycle 保護（`ignore_changes`・`prevent_destroy`）が理由の示されないまま外されたり弱められたりしない。変更前から存在する同型 resource が持つ保護を欠く resource の追加も検出する | Terraform 公式 [lifecycle meta-argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle)・[Remove a resource from state](https://developer.hashicorp.com/terraform/language/state/remove)・[`removed` ブロック](https://developer.hashicorp.com/terraform/language/block/removed) |
 | 4 | `for_each` vs `count` | warning | 固有の識別子を持つ要素のインスタンスが識別子で追跡される。`count = 1` は許容 | Terraform 公式 [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count)・[`for_each`](https://developer.hashicorp.com/terraform/language/meta-arguments/for_each) |

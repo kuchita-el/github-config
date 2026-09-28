@@ -20,5 +20,5 @@ reviewer は観点 1 を発火させない:
 
 発火するケースの指摘は、観点 1 の「判定の根拠」に挙げた次の一般的な出典に基づく（リポジトリ固有の規約文書を根拠にしない）。
 
-- Terraform 公式ドキュメント「Refactoring」: <https://developer.hashicorp.com/terraform/language/modules/develop/refactoring>
+- Terraform 公式ドキュメント「Refactor modules」: <https://developer.hashicorp.com/terraform/language/modules/develop/refactoring>
 - Terraform 公式ドキュメント `moved` ブロックの解説: <https://developer.hashicorp.com/terraform/language/block/moved>

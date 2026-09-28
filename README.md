@@ -243,7 +243,7 @@ Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit`
   - [設計仕様書](docs/design/terraform-structure.md) §3〜§7（§4 例外台帳を含む）
   - CLAUDE.md §2（既存リポの取り込み）・§3（App permission scope）
   - [ADR 0001](docs/adr/0001-repository-resource-structure.md) 決定 §3（`lifecycle.ignore_changes` の保護対象属性）
-- 両 reviewer の出力は呼び出し側の統合段でまとめる。`terraform-design-reviewer` の観点 7（差分が要する provider 権限の列挙）は必要な権限の列挙までを行い、付与状況との照合は行わない。統合段で、観点 7 が列挙した権限を CLAUDE.md §3 が定める App の付与権限と突き合わせ、付与権限を超える場合は CLAUDE.md §3 に従い App permission scope の拡張を別 Issue とする。
+- 両 reviewer の出力は呼び出し側の統合段でまとめる。`terraform-design-reviewer` の観点 7（差分が要する provider 権限の列挙）は必要な権限の列挙までを行い、付与状況との照合は行わない。統合段で、観点 7 が列挙した権限を CLAUDE.md §3 が定める App の付与権限と突き合わせ、付与権限を超える場合は CLAUDE.md §3 に従い App permission scope の拡張を別 Issue とする。観点 7 の列挙は resource 型の単位で行い、引数の値によって追加で呼ぶエンドポイントの権限（属性単位の条件。provider ドキュメントの resource ページの注記にあるものなど）は列挙しないため、統合段の突き合わせもその範囲に限られる。
 
 **validate 出力の取得**: `terraform-design-reviewer` は観点 9（provider 非推奨の新規使用）を、呼び出し側が渡す `terraform validate -json` の出力で判定する。初期化と環境変数は CI の validate ジョブ（`.github/workflows/terraform.yml`）と同じで、出力だけを `-json` にする。
 
