@@ -1,6 +1,6 @@
 # Fixture: gachanuma だけ Wiki を有効にする PR。
 # 理由: gachanuma は利用者向けの確率計算の解説を Wiki で公開しており、恒常的に必要。
-# リポごとの has_wiki の入力を足し、値を指定したリポだけ repository_preset の has_wiki を上書きする。
+# リポごとの has_wiki の入力を足し、repository_preset の has_wiki に重ねる。
 # 本 PR の変更は下記の3ファイルだけ。下記以外の既存ファイルは main のまま。
 
 # --- variables.tf（PR 後、variable "repositories" の type の repository 属性） ---

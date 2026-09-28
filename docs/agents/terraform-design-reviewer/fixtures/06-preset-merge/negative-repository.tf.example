@@ -3,7 +3,7 @@
 # 全管理リポの実値は既に true であり、PR の plan は No changes。
 # 期待: 観点 6 は発火しない。
 
-# --- repository.tf（PR 後） ---
+# --- repository.tf（PR 後、抜粋。示していない locals の値〔repository_preset のマージ方法・既定ブランチ・secret scanning の値〕・引数〔homepage_url・topics・マージ方法〕・ブロック〔dynamic "security_and_analysis"〕と github_branch_default は main のまま） ---
 locals {
   repository_preset = {
     allow_auto_merge       = false
@@ -42,20 +42,26 @@ resource "github_repository" "this" {
   }
 }
 
-# --- variables.tf（PR 後。repositories の型は変更なし） ---
+# --- variables.tf（PR 後。repositories の型は変更なし。description と validation は main のままのため省略） ---
 variable "repositories" {
   type = map(object({
     visibility = string
     profile    = string
 
     repository = optional(object({
-      archived    = optional(bool)
-      description = optional(string)
+      archived     = optional(bool)
+      description  = optional(string)
+      homepage_url = optional(string)
+      topics       = optional(set(string), [])
     }), {})
 
     branch_protection = optional(object({
       status_check_contexts       = optional(list(string), [])
       status_check_integration_id = optional(number)
+    }), {})
+
+    actions_permissions = optional(object({
+      patterns_allowed = optional(set(string), [])
     }), {})
   }))
 }

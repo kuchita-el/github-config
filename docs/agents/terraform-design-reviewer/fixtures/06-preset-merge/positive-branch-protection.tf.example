@@ -2,7 +2,39 @@
 # per-repo の上書き（enforcement / required_approving_review_count）を足し、
 # しかも null フォールバックを欠く。
 # 期待: 観点 6 が blocker で発火。
+#
+# 下記以外の既存ファイル（repository.tf / terraform.tfvars 等）は main のまま。
 
+# --- variables.tf（PR 後、variable "repositories" の抜粋。示していない属性・description・既存の validation は main のまま） ---
+variable "repositories" {
+  type = map(object({
+    # ...（main と同じ属性は省略）...
+
+    # PR で追加。
+    enforcement                     = optional(string)
+    required_approving_review_count = optional(number)
+  }))
+
+  # PR で追加。
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      r.enforcement == null || contains(["active", "disabled", "evaluate"], r.enforcement)
+    ])
+    error_message = "enforcement must be one of: active, disabled, evaluate."
+  }
+
+  # PR で追加。
+  validation {
+    condition = alltrue([
+      for r in values(var.repositories) :
+      r.required_approving_review_count == null || r.required_approving_review_count >= 0
+    ])
+    error_message = "required_approving_review_count must be 0 or greater."
+  }
+}
+
+# --- branch_protection.tf（PR 後、locals の追加ブロック。示していない locals・resource は main のまま） ---
 locals {
   branch_protection = {
     for repo, ovr in var.repositories : repo => {

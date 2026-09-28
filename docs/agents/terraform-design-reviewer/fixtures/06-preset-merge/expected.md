@@ -2,7 +2,7 @@
 
 各ケースは、worktree (post) を main のままとし、fixture を PR の内容として reviewer に渡したときの期待出力。fixture の `（PR 後…）` の節見出しの下の記述は、worktree の同じファイルの該当箇所を書き換えた後の内容として、`（PR で新規追加）` の節見出しの下の記述は、新しく加えるファイルの内容として読む。
 
-本ファイルは照合用であり、評価者（reviewer）には渡さない。PASS 条件は、発火の有無・観点番号・重要度の一致と、発火するケースで指摘の根拠が、反する不変条件の番号と下記「期待する判定根拠」の出典を含むこと。
+本ファイルは照合用であり、評価者（reviewer）には渡さない。PASS 条件は、発火の有無・観点番号・重要度の一致と、発火するケースで指摘の根拠が、そのケースの「根拠の示し方」に挙げた不変条件の番号と出典を含むこと（出典は下記「期待する判定根拠」の一覧のうち、そのケースの「根拠の示し方」に挙げたものだけを要し、一覧のすべてを要しない）。
 
 ## 陽性 1: 必須だった宣言の optional 化 (`positive-repository.tf.example`)
 
@@ -17,7 +17,7 @@
 - **観点 #**: 6
 - **重大度**: blocker
 - **対象**: `locals` の `branch_protection` の `enforcement`・`required_approving_review_count`
-- **指摘文言の主旨**: 不変条件 1 に反する。`enforcement`・`required_approving_review_count` にリポごとの値（`ovr.enforcement`・`ovr.required_approving_review_count`）をそのまま使っており、値を指定しないリポでは、全リポ共通値（`local.branch_protection_preset` の値）に代わって null が合成の結果に入り、揃えた値が消える（resource の引数に届けば、null は引数の省略として扱われ、provider の既定値になる）。
+- **指摘文言の主旨**: 不変条件 1 に反する。`enforcement`・`required_approving_review_count` にリポごとの値（`ovr.enforcement`・`ovr.required_approving_review_count`。既定値なしの `optional`）をそのまま使っており、値を指定しないリポでは、合成の結果（`locals` の `branch_protection`）で全リポ共通値（`local.branch_protection_preset` の値）に代わって null が入り、揃えた値が消える。合成の結果の段階で反するため、この値を参照する resource が差分や worktree (post) に無くても発火する（参照する resource があれば、null は引数の省略として扱われ provider の既定値になる）。
 - **根拠の示し方**: 不変条件 1 と、Terraform 公式の型制約 `optional`（既定値の無い optional の属性は、省略すると null になる）・「Types and Values」の `null`（resource の引数の null は省略として扱われる）。
 
 ## 陽性 3: 揃える値をリポごとの入力の既定値に置く (`positive-default-as-policy.tf.example`)
@@ -40,7 +40,7 @@
 
 ## 陰性 3: null を除いて重ねるリポごとの上書き (`negative-override-with-fallback.tf.example`)
 
-- 期待出力: 「観点 6: ✅」（観点 6 の指摘なし）
+- 期待出力: 指摘なし（観点 6 を含むいずれの観点も発火しない）
 - 理由: リポごとの入力（既定値なしの `optional(bool)` の `has_wiki`）を、全リポ共通値（`local.repository_preset`）に `merge()` と null の除去で重ねている。値を指定しないリポでは上書き側から `has_wiki` が除かれ、全リポ共通値のまま resource の引数へ届く（不変条件 1 を満たす）。揃えた値の置き場所は `repository_preset` の1か所で、リポごとの入力は既定値を持たない（不変条件 2 を満たす）。必須の宣言にも触れていない（不変条件 3 を満たす）。`merge()` を使うこと自体は発火条件にしない。リポごとに揃えた値から外す経路が認められたものか（登録などの手続きを経たか）は、観点 6 が判定しないことに当たり、指摘の理由にしない。
 - 陽性・陰性の期待の整合: この合成（揃えた値に `merge()` と null の除去で重ねる）は、改訂前の `positive-repository.tf.example` の逸脱 (a) と同じ形で、改訂前は陽性の一部として扱っていた。不変条件 1〜3 のいずれにも反しないため、改訂で陽性から外し、この陰性へ移した。陽性 1 は不変条件 3 だけに反する形へ書き直しており、この合成を含まない。
 
