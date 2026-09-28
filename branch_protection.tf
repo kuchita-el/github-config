@@ -9,9 +9,10 @@ locals {
   # ---------------------------------------------------------------------------
   branch_protection_profile_defaults = {
     # strict_required_status_checks_policy ("Require branches to be up to date
-    # before merging"), decided in ADR 0007: off only where a semantic conflict
-    # that slips past pre-merge CI is caught by main's CI and never reaches a
-    # real environment or a consumer directly (app).
+    # before merging"), a per-profile value (terraform-structure.md §8).
+    # Background in ADR 0007: off only where a semantic conflict that slips
+    # past pre-merge CI is caught by main's CI and never reaches a real
+    # environment or a consumer directly (app).
     distribution = {
       strict_required_status_checks_policy = true
     }
@@ -31,9 +32,11 @@ locals {
   # (terraform-structure.md §4), applied to every managed repository and
   # referenced directly by the resource below. Values originally mirrored the
   # gachanuma "main protection" ruleset so existing repos imported to a no-op;
-  # allowed_merge_methods now follows ADR 0005 (squash only). They cannot be
-  # changed per repository; deviating a repository requires registering the
-  # attribute in the exception ledger (terraform-structure.md §4).
+  # allowed_merge_methods now follows terraform-structure.md §8 (the same
+  # merge methods as local.repository_preset; background in ADR 0005). They
+  # cannot be changed per repository; deviating a repository requires
+  # registering the attribute in the exception ledger (terraform-structure.md
+  # §4).
   # ---------------------------------------------------------------------------
   branch_protection_preset = {
     name        = "main protection"

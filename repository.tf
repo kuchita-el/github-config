@@ -24,7 +24,8 @@ locals {
     delete_branch_on_merge = true
 
     # Merge methods: squash only, matching the Ruleset's allowed_merge_methods
-    # (ADR 0005, local.branch_protection_preset) at the repository layer so the
+    # (terraform-structure.md §8, local.branch_protection_preset) at the
+    # repository layer so the
     # merge button offers squash alone (Issue #17). The squash commit defaults
     # to the PR title and body. The provider sends the squash_* attributes only
     # while allow_squash_merge is true, and merge_commit_title /
@@ -58,10 +59,10 @@ locals {
 # (terraform-structure.md §4・§5). visibility is a required top-level field of
 # each entry.
 #
-# See: docs/design/terraform-structure.md (§4 value categories, §5 layout)
-#      docs/adr/0001-repository-resource-structure.md
-#  - §決定 > 1 (single file, required visibility)
-#  - §決定 > 3 (lifecycle.ignore_changes scope = visibility, archived only)
+# See: docs/design/terraform-structure.md (§4 value categories, §5 layout,
+#      §6 required visibility, §8 repository: single file,
+#      lifecycle.ignore_changes scope = visibility, archived only)
+# Background: docs/adr/0001-repository-resource-structure.md
 
 resource "github_repository" "this" {
   for_each = var.repositories
@@ -94,7 +95,8 @@ resource "github_repository" "this" {
   squash_merge_commit_title   = local.repository_preset.squash_merge_commit_title
   squash_merge_commit_message = local.repository_preset.squash_merge_commit_message
 
-  # secret_scanning / secret_scanning_push_protection (Issue #7, ADR 0010):
+  # secret_scanning / secret_scanning_push_protection (Issue #7,
+  # terraform-structure.md §6・§8):
   # public repos only. The GitHub Free plan cannot enable these on a private
   # repo (provider docs), so the block itself is omitted for private repos
   # instead of sending status = "disabled" (terraform-structure.md §6, ADR 0010
@@ -114,7 +116,7 @@ resource "github_repository" "this" {
   lifecycle {
     # Drift protection: UI/API changes to these attributes do not surface as plan
     # diff. visibility flips (public ⇔ private) have extreme blast radius; archived
-    # transitions block writes (Issue/PR/CI). See ADR 0001 §決定 > 3.
+    # transitions block writes (Issue/PR/CI). See terraform-structure.md §8.
     ignore_changes = [
       visibility,
       archived,

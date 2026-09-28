@@ -1,8 +1,8 @@
 # Terraform 構成の設計仕様
 
-本書は、本リポの Terraform 構成（module 構造、構成を見直す条件、設定種別、値の区分と例外台帳、命名と配置、visibility による出し分け、類型プロファイル）について、現行の設計規則の正本である。
+本書は、本リポの Terraform 構成（module 構造、構成を見直す条件、設定種別、値の区分と例外台帳、命名と配置、visibility による出し分け、類型プロファイル、設定種別ごとの規則）について、現行の設計規則の正本である。
 
-本書が扱う範囲について、ADR（`docs/adr/`）は、下記の改訂手続きが ADR を要するとした決定と、その理由の記録である。ADR 0005・0007〜0010 には、本書へまだ移していない現行規則が残っている。
+本書が扱う範囲について、ADR（`docs/adr/`）は、下記の改訂手続きが ADR を要するとした決定と、その理由の記録である。
 
 **改訂手続き**: 本書の規定を変える変更のうち、次のいずれかに当たるものは、決定を ADR（`docs/adr/`）に記録し、同じ変更で本書を改訂する。(1) 複数の設定種別や後続の変更を縛る構造・原則の変更（値の区分の体系、類型の追加、root module や Workspace の分割など）。(2) 却下した案とのトレードオフを残す価値がある変更。それ以外の変更（表の行、閾値、1属性の方針値、表現の整理など）は本書の改訂 PR だけで行い、理由はその PR に書く。いずれに当たるか迷う場合は ADR を書かない。例外台帳の行の追加・削除は §4「例外台帳」の登録の手続きに従う。
 
@@ -13,6 +13,12 @@
 | §1〜§7（節番号を ADR 0004 の決定に揃えている） | [ADR 0004](../adr/0004-terraform-module-structure-policy.md) 決定 §1〜§7 |
 | §3「既知の設定種別」表の `dependabot_security_updates` 行の visibility の制約と、`vulnerability_alerts` 行 | [ADR 0010](../adr/0010-vulnerability-alerts-and-dependabot-security-updates.md) 決定 §3 |
 | §4「取り込み時の食い違い」の (c) と判定の順序、本書の位置付けと改訂手続き | [ADR 0011](../adr/0011-design-spec-and-import-policy-review.md) |
+| §5「リポ名の変更」、§6 の `visibility` の必須化、§8「repository」の resource の集約・`topics`・`lifecycle.ignore_changes` | [ADR 0001](../adr/0001-repository-resource-structure.md) 決定 §1〜§3・影響 |
+| §8「branch_protection」のマージ方式 | [ADR 0005](../adr/0005-squash-only-merge-method.md) |
+| §8「branch_protection」の `strict_required_status_checks_policy` | [ADR 0007](../adr/0007-strict-status-checks-by-profile.md) |
+| §8「actions_permissions」 | [ADR 0008](../adr/0008-actions-permissions.md) 決定 §1・§3、帰結 |
+| §6 の visibility の切り替え手順の置き場所、§8「tag_protection」 | [ADR 0009](../adr/0009-tag-protection.md) 決定 §1・§2 |
+| §6 の `security_and_analysis` の出し分け、§8「repository」のセキュリティ設定、§8「vulnerability_alerts・dependabot_security_updates」 | [ADR 0010](../adr/0010-vulnerability-alerts-and-dependabot-security-updates.md) 決定 §1・§2 |
 
 ## 1. 単一 root module を維持する
 
@@ -131,6 +137,7 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 - **ファイル名**: 設定種別ファイルは `<concern>.tf`（`<concern>` は設定種別名）とする。設定種別に属さないファイルは `terraform.tf` / `providers.tf` / `variables.tf` / `locals.tf` / `outputs.tf` とする。
 - **設定種別名**: GitHub 上の機能名を snake_case にしたもので、`github_` や `repository_` の接頭辞を付けない（`github_repository` 自体の設定種別は `repository`）。1:N の集合は複数形とし、それ以外で名前がリソース型名に由来する場合はその単数・複数に従う。1つのリソース型を複数の関心事で使う場合は `<対象>_protection` とする。
 - **resource ラベル**: 設定種別名とする（例: `github_repository_ruleset.branch_protection`）。既存の `github_repository.this` はそのまま残す。
+- **リポ名の変更**: リポ単位のリソースは `for_each` のキーをリポ名とする。管理下のリポの名前を変えるときは、`terraform.tfvars` のキーの書き換えと同じ変更で、キーが変わるすべてのインスタンスに `moved` ブロックを追加し、plan が destroy と create ではなくアドレスの移動になることを確かめる。`github_repository` の destroy はリポ本体の削除（Issue・PR・リリース・Actions の履歴の喪失）になるためである。`moved` ブロックは適用後も削除・集約せずに残す。管理下に入る前のリポは state にアドレスが無いため、`moved` ブロックは要らない。
 - **`repositories` のフィールド構造**: 直下には `visibility` と `profile` だけを置き、リポ固有値と台帳登録属性は設定種別名のキーの下に入れ子にする（例: `repositories.<k>.branch_protection.status_check_contexts`）。キーは、その設定種別にリポ固有値か台帳登録属性があるときだけ設ける。1:N の差分は `add` / `exclude` とする。
 
   ```hcl
@@ -159,6 +166,9 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 - 適用できるかどうか（プラットフォームの制約）と、方針値（類型決定値・全リポ共通値）を別の軸として扱う。プラットフォームの制約を、類型決定値の表や per-repo のフィールドで表さない。
 - リソース単位の出し分けは、設定種別ファイルの冒頭の `local.<concern>_targets` で `for_each` の対象を絞る。属性単位の出し分けは、resource の中で visibility を条件にした条件式か dynamic ブロックで行う。これは適用可否の分岐であり、例外台帳への登録を要しない。
 - Ruleset（`branch_protection` と `tag_protection`）は public リポにだけ適用する。GitHub Free では private リポで Ruleset を使えない。
+- `visibility` は `repositories.<k>` 直下の必須フィールドで、既定値を持たない。既定値を編集すると全リポの公開範囲が一度に変わる事故を防ぐためである。
+- `github_repository` の `security_and_analysis`（secret scanning と push protection）は、dynamic ブロックで public リポにだけ送り、private リポにはブロック自体を送らない（`status = "disabled"` も送らない）。GitHub Free では private リポでこれらを有効にできない。
+- 管理対象リポの visibility を切り替えると、上の絞り込みにより Ruleset のインスタンスが create / destroy される。切り替えの手順は README に置かず、適用対象の絞り込みを実装した Issue に置く（[#4 のコメント](https://github.com/kuchita-el/github-config/issues/4#issuecomment-5847561538)。`branch_protection` と `tag_protection` の両方を扱う）。
 - private リポを管理対象にできるのは、リポ名（説明系の属性を管理する場合はその値も）が公開されてよい場合に限る。本リポは public で、`terraform.tfvars` に書いた値は公開される。
 
 ## 7. 類型プロファイル
@@ -178,3 +188,39 @@ GitHub 側に既にある設定を管理対象に入れるとき（import、ま�
 - 選んだ類型の値からそのリポだけ外したい属性は、§4 の例外台帳で扱う。同居リポの中でパスによって扱いを変えたい差は、Ruleset の外（HCP のトリガー条件、CI の集約ジョブなど）で吸収する。
 - `profile` は `repositories.<k>` 直下の必須フィールドで、既定値を持たず、上の4つの識別子以外を validation で拒否する。
 - `local.<concern>_profile_defaults` は4つの識別子すべてをキーに持ち、全類型が同じ属性の集合を持つように作る。類型ごとの具体値は、各設定種別を実装するときに決める。
+
+## 8. 設定種別ごとの規則
+
+本節は、設定種別ごとに、属性の区分（§4）・置き場所と、そう定めた理由を書く。値そのものは、各設定種別ファイルの冒頭の `local.<concern>_preset` / `local.<concern>_profile_defaults` を正本とし、本節には書き写さない。
+
+### repository
+
+- `github_repository` の resource ブロックは `repository.tf` の1つにまとめる（§3）。
+- `topics` はリポ固有値で、`github_repository.topics` 属性で管理する。補助リソース `github_repository_topics` は使わない。
+- `lifecycle.ignore_changes` で保護する属性は `visibility` と `archived` に限り、その他の属性（`description`、`homepage_url`、`topics` を含む）は drift を plan に出す。visibility の反転は影響範囲が極めて大きく、archived の遷移は書き込み（Issue・PR・CI）を止めるため、UI や API での変更を plan で宣言値へ戻さない。
+- `security_and_analysis` の `secret_scanning` と `secret_scanning_push_protection` の status は全リポ共通値（`local.repository_preset`）とし、類型決定値とリポ固有値は設けない。private リポの扱いは §6 による。
+- マージ方式の属性（`allow_merge_commit` / `allow_rebase_merge` / `allow_squash_merge` と squash のコミットの既定）は全リポ共通値（`local.repository_preset`）とし、下記「branch_protection」のマージ方式と揃える。
+
+### branch_protection
+
+- Ruleset の `allowed_merge_methods` は全リポ共通値（`local.branch_protection_preset`）とする。リポジトリの設定で許可するマージ方式（上記「repository」）と同じ集合にする。片方だけで許可したマージ方式は、Ruleset に拒まれるかマージボタンに出ないため使えない。
+- `strict_required_status_checks_policy`（マージ前に既定ブランチの最新化を要求するか）は類型決定値（`local.branch_protection_profile_defaults`）とする。per-repo のフィールドは設けず、特定のリポで外す場合は §4 の例外台帳による。
+
+### tag_protection
+
+- `enforcement` は類型決定値（`local.tag_protection_profile_defaults`）とし、それ以外の宣言する属性（`name`、`target`、`conditions.ref_name`、`rules` の `deletion` / `update` / `non_fast_forward`）は全リポ共通値（`local.tag_protection_preset`）とする。
+- `rules.creation` は宣言しない（タグの新規作成を制限しない）。`bypass_actors` のブロックは置かない（bypass を認めない）。
+- 保護しない類型は、適用対象から外さず `enforcement = "disabled"` のインスタンスとして表す（§7 の類型決定値の表で表す）。適用対象 `local.tag_protection_targets` は visibility だけで絞り、類型では絞らない（§6）。
+- リポ固有値（`repositories.<k>.tag_protection`）は設けない。リポ固有値の定義（§4）に当たる属性が無いためで、必要が生じた時点で `variables.tf` に加える。
+
+### actions_permissions
+
+- `allowed_actions_config.patterns_allowed` だけをリポ固有値（`repositories.<k>.actions_permissions.patterns_allowed`、既定値は空リスト）とし、その他の属性（`github_actions_repository_permissions` と `github_workflow_repository_permissions` の各属性）は全リポ共通値（`local.actions_permissions_preset`）とする。類型決定値にあたる属性は無い。`patterns_allowed` 以外を特定のリポで外す場合は §4 の例外台帳による。
+- 全リポ共通値で action の SHA 参照を必須にしているため（`sha_pinning_required`）、タグで action を参照するワークフローは失敗する。SHA の必須は、ワークフローが使う複合 action の内部の参照にも及ぶ。このため次を守る。
+  - 管理対象に取り込むリポは、取り込みの前に、ワークフローが参照する action を SHA 参照（`uses: <owner>/<repo>@<40桁の SHA> # <バージョン>`）に固定し、Dependabot の `github-actions` の更新を加え、使う外部 action を `patterns_allowed` に書く。複合 action は、内部の参照も SHA で固定された版を使う。本リポの GitHub App は Contents の権限を持たないため（CLAUDE.md §3）、ワークフローの書き換えは各リポの PR で行う。
+  - 管理下のリポのワークフローで新しい外部 action を使うときは、本リポでそのリポの `patterns_allowed` に加え、SHA で参照する。
+
+### vulnerability_alerts・dependabot_security_updates
+
+- それぞれの `enabled` は全リポ共通値（`local.vulnerability_alerts_preset` / `local.dependabot_security_updates_preset`）とし、類型決定値とリポ固有値は設けない。visibility の制約は無く、全管理リポに適用する（§3）。
+- 2つは別のリソース型で GitHub 上も別の設定であるため、別の設定種別ファイルに置く（§3・§5）。
