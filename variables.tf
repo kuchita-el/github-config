@@ -25,7 +25,7 @@ variable "repositories" {
 
   type = map(object({
     # リポジトリの公開範囲（必須）。全リポジトリで明示宣言を強制するため optional にしない
-    # （ADR 0001 §影響 > #16）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、
+    # （terraform-structure.md §6）。既定値の編集で全リポジトリの公開範囲が変わる事故を防ぐため、
     # default を持たせない。
     visibility = string
 
@@ -43,7 +43,7 @@ variable "repositories" {
       description = optional(string)
       # リポジトリのホームページ URL（About 欄の Website）。null はホームページなし。
       homepage_url = optional(string)
-      # リポジトリの topics（ADR 0001 §2: github_repository.topics 属性で管理する）。
+      # リポジトリの topics（terraform-structure.md §8: github_repository.topics 属性で管理する）。
       # 空リストは topics なし。英小文字・数字・ハイフンのみ、50 文字以内（provider の検証）。
       topics = optional(set(string), [])
     }), {})
