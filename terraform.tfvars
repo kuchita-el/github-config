@@ -52,7 +52,7 @@ repositories = {
   # Imported via a temporary import {} block, then converged. See README.
   #
   # profile = distribution（terraform-structure.md §7）: Claude Code / Codex 向けのプラグイン・スキル集。
-  # 利用者は marketplace 経由で ref 参照してインストールする（ADR 0004 §7 の識別子表が
+  # 利用者は marketplace 経由で ref 参照してインストールする（terraform-structure.md §7 の類型の表が
   # 「スキル」「プラグイン」を配布物の例として明示）。
   "claude-shared-skills" = {
     visibility = "public"
@@ -67,7 +67,7 @@ repositories = {
   # ruleset → fresh apply. CI job "build" required.
   #
   # profile = distribution（terraform-structure.md §7）: GitHub Action 本体。利用者のワークフローから
-  # `uses:` で ref 参照される成果物であり、ADR 0004 §7 の識別子表が「GitHub Action」を
+  # `uses:` で ref 参照される成果物であり、terraform-structure.md §7 の類型の表が「GitHub Action」を
   # 配布物の例として明示する。
   "dependabot-triage-action" = {
     visibility = "public"
