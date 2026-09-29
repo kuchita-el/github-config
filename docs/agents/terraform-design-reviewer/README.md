@@ -5,7 +5,7 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 - 定義: [`/.claude/agents/terraform-design-reviewer.md`](../../../.claude/agents/terraform-design-reviewer.md)
 - 起動形: `Agent(subagent_type: "terraform-design-reviewer", description: ..., prompt: ...)`
 - 位置付け: 既存 `dev-workflow:code-reviewer`（汎用）を置換せず、`.tf` 固有観点の補完として並列起動する
-- 関連 Issue: [#20](https://github.com/kuchita-el/github-config/issues/20)（新設）、[#79](https://github.com/kuchita-el/github-config/issues/79)（観点を不変条件で書く）、[#103](https://github.com/kuchita-el/github-config/issues/103)（判定の根拠を一般的な出典へ移す）
+- 関連 Issue: [#20](https://github.com/kuchita-el/github-config/issues/20)（新設）、[#79](https://github.com/kuchita-el/github-config/issues/79)（観点を不変条件で書く）、[#103](https://github.com/kuchita-el/github-config/issues/103)（判定の根拠を一般的な出典へ移す）、[#109](https://github.com/kuchita-el/github-config/issues/109)（観点 9 に provider schema の非推奨の印を加える）
 
 ## 観点サマリ
 
@@ -21,20 +21,23 @@ Terraform 変更を伴う PR の **設計逸脱を機械的に検出する** プ
 | 6 | 既定値の合成と単一の置き場所 | blocker（判定の限界は warning） | 未指定（null）が揃えた値を消さない、揃えた値の正の置き場所が一つ、必須だった宣言を省略可能にしない | Terraform 公式 [`merge` 関数](https://developer.hashicorp.com/terraform/language/functions/merge)・[型制約 `optional`](https://developer.hashicorp.com/terraform/language/expressions/type-constraints)・[Types and Values の `null`](https://developer.hashicorp.com/terraform/language/expressions/types) |
 | 7 | 差分が要する provider 権限の列挙 | warning | 差分が provider に新たに要求する権限が、レビューの時点で漏れなく列挙される。付与状況との照合は呼び出し側で行う | [GitHub Apps permissions reference](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps)・[GitHub REST API](https://docs.github.com/en/rest) の各エンドポイントのドキュメント・`integrations/github` provider の[公式ドキュメント](https://registry.terraform.io/providers/integrations/github/latest/docs)と[ソース](https://github.com/integrations/terraform-provider-github) |
 | 8 | plan-time リスク | warning / blocker | 意図しない破棄・再作成を伴って適用されない。PR の `import` ブロックの対象アドレスが plan 出力で置換・破棄されるときは blocker | Terraform 公式 [import](https://developer.hashicorp.com/terraform/language/import)・[`import` ブロック](https://developer.hashicorp.com/terraform/language/block/import)・[`terraform plan`](https://developer.hashicorp.com/terraform/cli/commands/plan) |
-| 9 | provider 非推奨の新規使用 | warning | provider が非推奨とした属性・resource（data source を含む）を差分で新たに使い始めない。入力は `terraform validate -json` の出力（未提供なら未評価）。値が validate の時点で決まらない属性は、警告が出ない場合は新規使用を検出できない（判定の限界） | Terraform 公式の provider 開発ドキュメント「Deprecations, Removals, and Renames」（[SDKv2](https://developer.hashicorp.com/terraform/plugin/sdkv2/best-practices/deprecations)・[Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/deprecations)）・provider の公式ドキュメントと CHANGELOG・[`terraform validate`](https://developer.hashicorp.com/terraform/cli/commands/validate) |
+| 9 | provider 非推奨の新規使用 | warning | provider が非推奨とした属性・resource（data source を含む）を差分で新たに使い始めない。入力は `terraform validate -json` の出力（validate 経路）と、`terraform providers schema -json` から抜き出した非推奨スキーマ一覧（スキーマ経路。値の由来によらず、追加行に書かれた属性・block・型を照合する）。両方とも未提供なら未評価。非推奨スキーマ一覧が無いと、値が validate の時点で決まらない属性は、警告が出ない場合は新規使用を検出できない（判定の限界） | Terraform 公式の provider 開発ドキュメント「Deprecations, Removals, and Renames」（[SDKv2](https://developer.hashicorp.com/terraform/plugin/sdkv2/best-practices/deprecations)・[Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework/deprecations)）・provider の公式ドキュメントと CHANGELOG・[`terraform validate`](https://developer.hashicorp.com/terraform/cli/commands/validate)・[`terraform providers schema`](https://developer.hashicorp.com/terraform/cli/commands/providers/schema) |
 
 ## 起動例
 
 ### 呼び出し側の事前準備
 
-reviewer は `Bash` ツールを持たないため、呼び出し側で `git diff` と validate 出力を事前取得する:
+reviewer は `Bash` ツールを持たないため、呼び出し側で `git diff`・validate 出力・非推奨スキーマ一覧を事前取得する:
 
 ```bash
 git diff main...HEAD -- '*.tf' '*.tfvars' > /tmp/tf-diff.txt
 terraform validate -json   # PR 適用後（HEAD）の作業ディレクトリで実行し、出力を ## validate 出力 に貼る
+# 非推奨スキーマ一覧: terraform providers schema -json の出力を extract-deprecations.jq で抜き出し、## 非推奨スキーマ一覧 に貼る
 ```
 
-validate の実行に要る初期化と環境変数は [`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用)「PR レビュー時の reviewer 併用」節を参照。`## validate 出力` には `terraform validate -json` の出力（JSON）をそのまま貼る。リポジトリのルート以外のディレクトリで validate を実行した場合は、見出しの後の最初の行（JSON の前）に `実行ディレクトリ: <リポジトリのルートからの相対パス>`（例: `実行ディレクトリ: infra`）の1行を置き、その次の行から JSON を貼る。reviewer は見出しの後の最初の空でない行が `実行ディレクトリ:` で始まるときだけそれを実行ディレクトリとして読み、JSON はその行を除いて読む。この行が無ければ、reviewer はリポジトリのルートで実行したものとみなす（読み方の定めは reviewer 定義の「入力」節）。人間向けの出力（`-json` なし）や validate が失敗した出力を貼ると、観点 9 は未評価になる。
+validate の実行に要る初期化と環境変数は [`/README.md`](../../../README.md#pr-レビュー時の-reviewer-併用)「PR レビュー時の reviewer 併用」節を参照。`## validate 出力` には `terraform validate -json` の出力（JSON）をそのまま貼る。リポジトリのルート以外のディレクトリで validate を実行した場合は、見出しの後の最初の行（JSON の前）に `実行ディレクトリ: <リポジトリのルートからの相対パス>`（例: `実行ディレクトリ: infra`）の1行を置き、その次の行から JSON を貼る。reviewer は見出しの後の最初の空でない行が `実行ディレクトリ:` で始まるときだけそれを実行ディレクトリとして読み、JSON はその行を除いて読む。この行が無ければ、reviewer はリポジトリのルートで実行したものとみなす（読み方の定めは reviewer 定義の「入力」節）。人間向けの出力（`-json` なし）や validate が失敗した出力を貼ると、観点 9 の validate 経路は未評価になる。
+
+非推奨スキーマ一覧の取得手順（型の書き出し・schema を取得するディレクトリ・サンドボックスの制約）も同じ節を参照。`## 非推奨スキーマ一覧` には [`extract-deprecations.jq`](extract-deprecations.jq) の出力（JSON）をそのまま貼る（形式の定めは reviewer 定義の「入力」節）。貼らない場合、観点 9 は validate 経路だけで評価され、値が validate の時点で決まらない属性の非推奨は、警告が出ない場合は検出できない。
 
 ### 単独起動
 
@@ -54,6 +57,9 @@ Agent(
     ## validate 出力（任意）
     実行ディレクトリ: <リポジトリのルート以外で実行した場合だけ書く。ルートで実行した場合はこの行を省く>
     <`terraform validate -json` の出力（JSON）。未提供なら空欄>
+
+    ## 非推奨スキーマ一覧（任意）
+    <`extract-deprecations.jq` の出力（JSON）。未提供なら空欄>
 
     ## 要件情報
     <Issue/PR 本文の要点>
@@ -77,6 +83,8 @@ Agent(
     ## validate 出力（任意）
     実行ディレクトリ: <リポジトリのルート以外で実行した場合だけ書く。ルートで実行した場合はこの行を省く>
     <`terraform validate -json` の出力（JSON）>
+    ## 非推奨スキーマ一覧（任意）
+    <`extract-deprecations.jq` の出力（JSON）>
     ## 要件情報
     <Issue/PR 本文の要点>
   """
@@ -115,10 +123,12 @@ reviewer 動作確認用フィクスチャを `fixtures/` 配下に観点ごと�
 | 7 | 同上 | 変更前から使っている型 `github_repository_ruleset` の追加（`negative-ruleset.tf.example`）、名前の付け替えと `moved`（適用後ケース `negative-rename-applied.diff`） | 発火なし |
 | 8 | `fixtures/08-plan-time-risk/` | plan テキスト 4 種: destroy（`plan-positive-destroy.txt`）／replace（`plan-positive-replace.txt`）／no-change（`plan-negative-nochange.txt`）／未提供（`plan-empty.txt`） | warning ／ warning ／ 発火なし ／ 未評価 |
 | 8 | 同上 | `import` ブロック連携の格上げ: `import-block.tf.example` を差分、`plan-positive-replace.txt` を plan 出力として組で渡す | blocker |
-| 9 | `fixtures/09-provider-deprecation/` | 各ケースは `<ケース>.diff`（差分）と `validate-<ケース>.txt`（`terraform validate -json` の出力）の組。属性の新規使用（`positive-attribute`）、resource の新規使用（`positive-resource`） | warning |
+| 9 | `fixtures/09-provider-deprecation/` | 各ケースは `<ケース>.diff`（差分）・`validate-<ケース>.txt`（`terraform validate -json` の出力）・`schema-<ケース>.txt`（非推奨スキーマ一覧）の組。属性の新規使用（`positive-attribute`）、resource の新規使用（`positive-resource`） | warning |
+| 9 | 同上 | 値が `each.value` に由来する属性の新規使用（`positive-attribute-each-value`）、値が input variable に由来する属性の新規使用（`positive-attribute-variable`）。validate の警告は無く、スキーマ経路だけが検出する | warning |
 | 9 | 同上 | 非推奨でない属性の追加（`negative`）、変更前からの使用（`boundary-preexisting`）、変更前からの使用の書き換え（`boundary-rewritten-preexisting`） | 発火なし |
 | 9 | 同上 | 変更前からの使用と新規の使用の同居（`mixed-preexisting-and-new`） | 新規の使用の行だけ warning |
-| 9 | 同上 | validate 出力の未提供（`positive-attribute.diff` だけを渡す） | 未評価 |
+| 9 | 同上 | 非推奨スキーマ一覧の未提供（`positive-attribute-each-value` の `.diff` と `validate-*.txt` だけを渡す） | 発火なし（validate 経路だけで評価し、判定の限界を併記） |
+| 9 | 同上 | 両方の未提供（`positive-attribute.diff` だけを渡す） | 未評価 |
 
 各ディレクトリの `expected.md` に期待出力（観点 # / 重大度 / 指摘文言の主旨）と、末尾の「期待する判定根拠」節に判定根拠として期待する一般的な出典を記録。検証結果の照合表は [`verification.md`](verification.md) を参照。
 
@@ -126,7 +136,7 @@ reviewer 動作確認用フィクスチャを `fixtures/` 配下に観点ごと�
 
 - `.tf.example`: PR の内容を HCL で示す。worktree は変更せず、fixture を PR の内容として reviewer に渡す（worktree＋fixture を PR 適用後の状態として評価する）。`（PR 後…）` の節見出しの下は worktree の同じファイルの該当箇所を書き換えた後の内容、`（PR で新規追加）` の節見出しの下は新しく加えるファイルの内容として読む。
 - `.txt`（観点 8）: HCP plan 出力のテキスト。`## plan 出力` として渡す。
-- `.diff` と `validate-*.txt`（観点 9）: `.diff` を `## git diff`、対応する `validate-*.txt` を `## validate 出力` として渡す。worktree は変更しない。
+- `.diff`・`validate-*.txt`・`schema-*.txt`（観点 9）: `.diff` を `## git diff`、対応する `validate-*.txt` を `## validate 出力`、対応する `schema-*.txt` を `## 非推奨スキーマ一覧` として渡す。worktree は変更しない。`schema-*.txt` は、`.diff` が触れた `.tf` ファイル（PR 適用後）にある型を [`extract-deprecations.jq`](extract-deprecations.jq) に渡した出力。
 - `*-applied.diff`（観点 3・7 の適用後ケース）: 評価の前に `git apply` で worktree に置いて PR 適用後の状態を作り、同じ `.diff` を `## git diff` として渡す（下記「適用後ケースの評価手順」）。
 - `.diff` の先頭の `#` で始まるコメント行は、PR の内容と評価の前提の説明であり、差分の本体ではない。
 

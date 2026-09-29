@@ -1,0 +1,17 @@
+{
+  "checked": [
+    {
+      "kind": "resource",
+      "type": "github_repository_deployment_branch_policy"
+    }
+  ],
+  "not_found": [],
+  "deprecated": [
+    {
+      "kind": "resource",
+      "type": "github_repository_deployment_branch_policy",
+      "target": "type",
+      "path": ""
+    }
+  ]
+}
