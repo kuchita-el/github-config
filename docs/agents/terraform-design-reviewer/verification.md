@@ -630,3 +630,66 @@ J3（resource 単位の非推奨でも validate が警告を出す）と J7（�
 ### 結論
 
 #103 の改訂後の定義（a06c48d）で、テストケース対応表 AC3 の全39ケースと境界の追加ケース `09-boundary-rewritten-preexisting` の計40件すべてで、対象観点の判定が期待と一致した（**代理試験**、各1回）。全ケースで、指摘の根拠と説明に本リポの ADR・設計仕様書・CLAUDE.md の引用は無かった。適用後ケース4件で worktree (post) 配下の適用ファイルを読んだこと、14体すべてで書き込み・git 操作が無く、ツールの結果に期待値の行が無いことを、評価者の記録で確かめた。実機 `terraform-design-reviewer` 起動による補強は取得していない。
+
+## 観点9 の情報源の見直し（#109、2026-09-29）
+
+Issue #109 で、#103 の決定7（観点9 の情報源を `terraform validate -json` の出力に限る）を見直した。本節は、その判断・実測・fixture の更新・reviewer 起動による確認の記録である。本節より前の記録（「## 観点9 の実測記録（#103）」節を含む）は #103 時点の定義を指し、本節では変更していない。
+
+### 決定7 の見直しの判断（ユーザー決定）
+
+- **判断**: 見直す。採用したのは案 A: validate 出力は残し、追加の入力として `terraform providers schema -json` の出力から、差分に現れた resource 型・data source 型の非推奨の型・属性・入れ子の block のパスを jq で抜き出した一覧（`## 非推奨スキーマ一覧`）を渡す。reviewer は差分の追加行に書かれた属性・block・型を、ブロック内の位置（パス）まで含めてこの一覧と照合し、値の由来（リテラル・local value・input variable・`each.value`）によらず新規使用を指摘する（スキーマ経路）。validate 由来の既存の判定経路（`range` による行の照合、resource 単位の `Deprecated Resource`）も残す（validate 経路）。
+- **却下した案 B**（決定7 を維持し、限界を明記したままにする）: 本リポのリポ固有値はすべて `each.value` 経由で各リソースへ渡る構成で、属性単位の非推奨は値が validate の時点で決まらず警告が出ないため、観点9 が属性単位の新規使用をほぼ検出できないまま残る。
+- **却下した案 C**（schema だけにして validate をやめる）: validate の `range`（警告の行番号）と、provider の案内（`detail`）付きの resource 単位の検出経路を失う。
+- App の permission scope は変えていない。schema の取得は provider を起動するが、GitHub API には接続しない（下記の実測は provider の設定も認証情報も無い構成で成功した）。
+
+### provider schema の非推奨の印の実測
+
+- **実施日**: 2026-09-29（親セッションが取得。生データはリポジトリ外の作業ディレクトリに置いた）
+- **版**: Terraform v1.15.6（`mise exec terraform@1.15.6 --`）、provider `integrations/github` v6.12.1
+- **手順**: 最小構成（`required_providers` で `integrations/github` を 6.12.1 に固定し、`provider "github" {}` だけを置く。backend なし）で `terraform init -backend=false` の後に `terraform providers schema -json` を実行した。終了コード 0、出力 215,685 バイト。サンドボックス内では provider の起動が `listen unix ...: socket: operation not permitted` で失敗したため、サンドボックスの外で実行した。
+- **結果（非推奨の印が載ること）**: `.provider_schemas["registry.terraform.io/integrations/github"].resource_schemas.github_repository.block.attributes.has_downloads` は `{"type":"bool","description":"Set to 'true' to enable the (deprecated) downloads features on the repository.","description_kind":"plain","deprecated":true,"optional":true}` だった。出力全体の `deprecated: true` の数は次のとおり（provider の設定の属性 `organization` の1件を除く）。
+
+| schema | 型の数 | 型そのものが非推奨 | 属性 | 入れ子の block |
+|---|---|---|---|---|
+| `resource_schemas` | 88 | 8 | 27 | 1（`github_repository` の `pages`） |
+| `data_source_schemas` | 75 | 3 | 10 | 0 |
+
+  - 型そのものが非推奨の resource: `github_organization_custom_role`・`github_organization_project`・`github_organization_role_team_assignment`・`github_organization_security_manager`・`github_project_card`・`github_project_column`・`github_repository_deployment_branch_policy`・`github_repository_project`。data source: `github_organization_custom_role`・`github_organization_security_managers`・`github_repository_deployment_branch_policies`。
+  - 入れ子の属性はパス `block_types.<名前>.block.attributes.<属性>` にあり（例: `github_branch_protection_v3` の `required_status_checks.contexts`）、block そのものの非推奨は `block_types.<名前>.block.deprecated` にある（例: `github_repository` の `pages`）。`github_repository` の非推奨は、属性 `default_branch`・`has_downloads`・`ignore_vulnerability_alerts_during_read`・`private`・`vulnerability_alerts` と block `pages`。
+  - 非推奨の理由・代替を述べる文言の項目は無い（`deprecation_message` 等の項目は0件）。このため、スキーマ経路だけが検出した指摘は provider の案内を含まない。
+- **同じ構成での validate**: `has_downloads = var.has_downloads`（bool の variable、既定値 `true`）の `terraform validate -json` は `diagnostics` 0件だった（#103 の実測 (a) を再現）。値が validate の時点で決まらない属性でも、schema には非推奨の印がある。
+- **本リポの作業ディレクトリでの実行（2026-09-29、本セッション）**: 本リポの `.tf`（`cloud {}` ブロックを含む）と `.terraform.lock.hcl` をリポジトリ外の一時ディレクトリへ写し、`terraform init -backend=false -plugin-dir=<main checkout の .terraform/providers>` の後に `terraform providers schema -json` を実行すると、provider を起動する前に `HCP Terraform or Terraform Enterprise initialization required: please run "terraform init"` で失敗した（終了コード 1）。validate と異なり、このコマンドは backend の初期化を要する。そこで README の手順は、`cloud {}` を持たない別のディレクトリ（`.terraform/deprecation-schema`。`required_providers` だけの構成と本リポの `.terraform.lock.hcl`、`-lockfile=readonly` で初期化）で取得する形にした。この形でサンドボックス内から実行すると、init は成功し（`-plugin-dir` で導入、`.terraform.lock.hcl` は変わらない）、`providers schema -json` は backend の検査を通って provider の起動（`Failed to load plugin schemas`）で失敗した。この形でのサンドボックス外の取得は、本セッションでは実行していない。
+- **抽出（`extract-deprecations.jq`）**: 上記の schema に対して、本リポの全 `.tf` にある型（resource 7種）を渡した出力は 1,037 バイトだった。fixture 09 の `schema-*.txt` は 59〜1,027 バイト。空の型の一覧を渡すと `{"checked":[],"not_found":[],"deprecated":[]}`、schema に無い型は `not_found` に入ることも確かめた。
+
+### fixture 09 の更新
+
+- 既存の各ケースに `schema-<ケース>.txt`（`.diff` が触れた `.tf` ファイル〔PR 適用後〕にある型を `extract-deprecations.jq` に渡した、上記の schema による出力）を足し、`expected.md` の期待に両経路の突き合わせを書き足した。既存ケースの期待（発火の有無・位置・重大度）は変わらない。
+- 陽性を2件追加した。`positive-attribute-each-value`（`github_repository.this` に `has_downloads = each.value.repository.has_downloads` を足し、`variables.tf` の `repository` の object 型に `has_downloads = optional(bool)` を足す）と `positive-attribute-variable`（新規ファイルで、bool の input variable の値を `github_repository.sandbox_downloads` の `has_downloads` に渡す）。差分は、worktree の `repository.tf`・`variables.tf` を写した一時的な git リポジトリで編集し、`mise exec terraform@1.15.6 -- terraform fmt` で整形してから `git diff` で取った（`repository.tf` の変更前の blob は既存 fixture と同じ `47a9a61`）。
+- 追加した2件の `validate-*.txt` は `diagnostics` 0件（`validate-negative.txt` と同じ内容）とした。これは fixture の構成そのものを validate した出力ではなく、同じ形の実測（#103 の実測 (a) input variable・(d) `each.value`、上記の 2026-09-29 の再現）で警告が0件だったことに基づく。サンドボックス内では provider を起動できず、fixture の構成そのものの validate は取得していない。
+- 未提供ケースを2つに分けた。非推奨スキーマ一覧だけの未提供（`positive-attribute-each-value` の `.diff` と `validate-*.txt` を渡す。validate 経路だけで評価して指摘なし、判定の限界を併記）と、両方の未提供（`positive-attribute.diff` だけ。観点9 全体を未評価）。
+
+### reviewer の起動による確認（AC4）
+
+- **起動**: `Agent(subagent_type: "terraform-design-reviewer", model: sonnet)` を1ケースにつき1体、10体を並列で起動した。各ケース1回。プロンプトには、worktree 上の改訂後の定義の絶対パスを渡してそれを Read して従うこと、worktree (post) のルートの絶対パス、各セクションとして扱う fixture の絶対パス、禁止事項（`expected.md`・`verification.md`・reviewer README を読まない。未提供ケースでは渡さない `validate-*.txt`・`schema-*.txt` も読まない）を書いた。
+- **読み込まれた定義**: 10体すべてが、システムプロンプトの定義に「スキーマ経路」の語が無い（改訂前の定義）と答えた。`subagent_type` の名前解決は main checkout の改訂前の定義を読み込んだとみられる（#103 の「実機補強」の記録と同じ事情）。各体は指示どおり worktree 上の改訂後の定義を Read して評価した（9体の実行ログに定義の全行〔1〜529 行〕の Read がある。schema 未提供ケースの1体は 1〜436 行だけを読み、出力フォーマットの節〔437 行以降〕を読んでいない）。このため本確認は、実機の reviewer（`tools` の制限は実機のもの）が、ファイルで渡された改訂後の定義に従って評価した結果であり、改訂後の定義がシステムプロンプトとして読み込まれた状態の確認ではない。
+
+| ケース | 渡したもの | 期待 | 実出力（観点9） | 判定 |
+|---|---|---|---|---|
+| positive-attribute-each-value | diff＋validate＋schema | warning `repository.tf:82`（`has_downloads`、スキーマ経路だけが検出） | warning `repository.tf:82`、「provider schema の非推奨の印」、案内の文言が無い旨。❌（validate 経路: 評価、スキーマ経路: 評価） | PASS |
+| positive-attribute-variable | diff＋validate＋schema | warning `sandbox_downloads.tf:12`（スキーマ経路だけが検出） | warning `sandbox_downloads.tf:12`。対象外: 観点5 suggestion（`name`・`visibility` の直書き） | PASS |
+| positive-attribute | diff＋validate＋schema | warning `repository.tf:82`（両経路を1件にまとめる） | warning `repository.tf:82` 1件、両経路の検出を1件にまとめ、validate の `detail` を案内に使用 | PASS |
+| positive-resource | diff＋validate＋schema | warning `deployment_branch_policy.tf:1`（観点7 warning「未確定」は発火しうる） | warning `deployment_branch_policy.tf:1` 1件（両経路）。観点7 warning（必要権限: 未確定）は expected.md の記載どおり。対象外: 観点5 suggestion | PASS |
+| negative | diff＋validate＋schema | 発火なし | ✅（`allow_update_branch` は一覧に無い） | PASS |
+| boundary-preexisting | diff＋validate＋schema | 発火なし | ✅（診断は追加行に無い。追加行は `variable` ブロックの中で照合しない） | PASS |
+| boundary-rewritten-preexisting | diff＋validate＋schema | 発火なし | ✅（両経路とも、同じ resource の削除行に同じ属性があるため書き換えとして除外） | PASS |
+| mixed-preexisting-and-new | diff＋validate＋schema | warning `sandbox_repository.tf:6` だけ | warning `sandbox_repository.tf:6`（両経路を1件）だけ。`repository.tf:82` は指摘しない。対象外: 観点5 suggestion | PASS |
+| schema 未提供 | each-value の diff＋validate | 指摘なし、スキーマ経路は未評価、判定の限界を併記 | 指摘なし。「観点9: ✅（スキーマ経路は未評価（非推奨スキーマ一覧未提供）。非推奨スキーマ一覧が無いため、値が validate の時点で決まらない属性の非推奨は、警告が出ない場合は検出できない）」 | PASS（注） |
+| 両方の未提供 | positive-attribute の diff だけ | 観点9 未評価、知識による指摘なし | 「観点9: 未評価（validate 経路: 未評価（validate 出力未提供）、スキーマ経路: 未評価（非推奨スキーマ一覧未提供））」、指摘なし | PASS |
+
+（注）判定・併記の内容は期待どおりだが、総評の書式は定義の「（validate 経路: 評価、スキーマ経路: 未評価（<理由>））」から「validate 経路: 評価」を省いた形だった。この1体は定義の出力フォーマットの節を読んでいない（上記「読み込まれた定義」）。
+
+10件すべて PASS。値が `each.value`・input variable に由来する陽性2件で、validate の警告が無くても観点9 の warning が出た（AC4）。陰性・境界・組み合わせの4件で、スキーマ経路による誤検出は無かった。全10体で、指摘の根拠と説明に本リポの ADR・設計仕様書・CLAUDE.md の引用は無かった（`boundary-preexisting` の1体は、禁止事項を守った旨を書く際に `docs/plans/.gitignore` の配置規約に触れたが、指摘には使っていない）。
+
+### Claude Code 内での schema の取得（#109、2026-09-29）
+
+サンドボックスの除外設定に `mise exec -- terraform providers schema *` を加えた状態（利用者が `.claude/settings.local.json` に追加）で、メインセッションから README の手順どおり `.terraform/deprecation-schema` を用意して `init` した後、`cd .terraform/deprecation-schema` と `mise exec -- terraform providers schema -json` をそれぞれ単独のコマンドとして実行した。provider は起動し、出力（210.6KB 表示、215,685 バイト）は Claude Code によりファイルへ退避された。退避されたファイルは `jq` で読め、`jq -S .` で正規化した内容は、同じ版（Terraform v1.15.6、provider v6.12.1）でサンドボックスの外で取得した schema.json と一致した。`extract-deprecations.jq` をかけた結果も、同じ型の一覧に対して同じだった。README の取得手順は、この形を Claude Code 内の手順として記載した。

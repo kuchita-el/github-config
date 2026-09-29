@@ -247,14 +247,22 @@ Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit`
   - CLAUDE.md §2（既存リポの取り込み）・§3（App permission scope）
 - 両 reviewer の出力は呼び出し側の統合段でまとめる。`terraform-design-reviewer` の観点 7（差分が要する provider 権限の列挙）は必要な権限の列挙までを行い、付与状況との照合は行わない。統合段で、観点 7 が列挙した権限を CLAUDE.md §3 が定める App の付与権限と突き合わせ、付与権限を超える場合は CLAUDE.md §3 に従い App permission scope の拡張を別 Issue とする。観点 7 の列挙は resource 型の単位で行い、引数の値によって追加で呼ぶエンドポイントの権限（属性単位の条件。provider ドキュメントの resource ページの注記にあるものなど）は列挙しないため、統合段の突き合わせもその範囲に限られる。
 
-**validate 出力の取得**: `terraform-design-reviewer` は観点 9（provider 非推奨の新規使用）を、呼び出し側が渡す `terraform validate -json` の出力で判定する。初期化と環境変数は CI の validate ジョブ（`.github/workflows/terraform.yml`）と同じで、出力だけを `-json` にする。
+**validate 出力の取得**: `terraform-design-reviewer` は観点 9（provider 非推奨の新規使用）を、呼び出し側が渡す `terraform validate -json` の出力（validate 経路）と、次の非推奨スキーマ一覧（スキーマ経路）で判定する。初期化と環境変数は CI の validate ジョブ（`.github/workflows/terraform.yml`）と同じで、出力だけを `-json` にする。
 
 - PR 適用後（HEAD）の作業ディレクトリで実行する。未初期化の作業ディレクトリでは、先に `terraform init -backend=false` で初期化する（HCP Terraform の workspace に接続せずに provider を導入する）。
 - `GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`GITHUB_APP_PEM_FILE` の3変数を設定して `terraform validate -json` を実行する。`providers.tf` の `app_auth {}` がこの3変数を読むため、設定しないと validate が失敗する。validate は provider の API（GitHub API）に接続しないため、値はダミーでよい。
 - 出力（JSON）を `## validate 出力` にそのまま貼る。リポジトリのルート以外のディレクトリで実行した場合は、見出しの後の最初の行（JSON の前）に `実行ディレクトリ: <リポジトリのルートからの相対パス>`（例: `実行ディレクトリ: infra`）の1行を置き、次の行から JSON を貼る。この行が無ければ、reviewer はリポジトリのルートで実行したものとみなす（読み方の定めは reviewer 定義の「入力」節）。
-- validate 出力を渡さない場合と、`-json` 形式でない出力（人間向けの出力）や validate が失敗した出力を渡した場合は、観点 9 は未評価になる。また、属性の値が validate の時点で決まらない場合（input variable や `each.value` に由来する場合など）は、非推奨の属性を新たに使っても validate が警告を出さないことがあり、その新規使用は観点 9 では検出できない（reviewer 定義の観点 9 の「判定の限界」）。
+- validate 出力を渡さない場合と、`-json` 形式でない出力（人間向けの出力）や validate が失敗した出力を渡した場合は、観点 9 の validate 経路は未評価になる。属性の値が validate の時点で決まらない場合（input variable や `each.value` に由来する場合など）は、非推奨の属性を新たに使っても validate が警告を出さないことがある。本リポのリポ固有値は `each.value` 経由で各リソースへ渡るため、次の非推奨スキーマ一覧もあわせて渡す。
 
-**起動例（Claude Code 内）**: `terraform-design-reviewer` は `Bash` 権限を持たないため、呼び出し側で事前に `git diff` と validate 出力を取得してプロンプトに含める。
+**非推奨スキーマ一覧の取得**: `terraform-design-reviewer` の観点 9 は、`terraform providers schema -json` の出力にある非推奨の印（`deprecated`）も使い、差分の追加行に書かれた属性・block・resource の型を照合する（値の由来によらず検出できる）。スキーマの出力は大きいため、差分が触れた型の非推奨の印だけを [`docs/agents/terraform-design-reviewer/extract-deprecations.jq`](docs/agents/terraform-design-reviewer/extract-deprecations.jq) で抜き出して渡す。
+
+- 差分が触れた `.tf` ファイル（PR 適用後）から、`resource`・`data` の型を1行に1つ「`resource <TYPE>`」「`data <TYPE>`」の形で書き出す（下の起動例の `sed`）。
+- provider schema は、`cloud {}` ブロックを持たない別のディレクトリ（`.terraform/deprecation-schema`。`.terraform/` 配下は追跡対象外）で取得する。本リポの作業ディレクトリで `terraform init -backend=false` の後に `terraform providers schema -json` を実行すると、`HCP Terraform or Terraform Enterprise initialization required` で失敗する（このコマンドは backend の初期化を要する）。そのディレクトリには、`required_providers` だけを書いた構成と本リポの `.terraform.lock.hcl` を置き、`-lockfile=readonly` で初期化して、本リポと同じ provider の版を使う。リポジトリの配下に置くのは、`mise.toml` が固定した Terraform の版をそのまま使うため。schema の取得は GitHub API に接続せず、App の認証情報も要らない。
+- schema を取得する前の `terraform init` は、provider をレジストリ（`registry.terraform.io`）とその配布元から取得するため、ネットワークへの接続を要する（下の provider の起動の制約とは別の制約）。Claude Code のサンドボックス内では、接続先を許可しないと `Failed to query available provider packages` で失敗する。接続先をサンドボックスに許可して実行するか（2026-09-29 の実測では `registry.terraform.io`・`releases.hashicorp.com`・`github.com`・`objects.githubusercontent.com`・`release-assets.githubusercontent.com` を許可して成功した。どれが必須かは切り分けていない）、初期化済みの作業ディレクトリの provider を `-plugin-dir=<その作業ディレクトリの .terraform/providers>` で指定して、ネットワークに接続せずに初期化する。
+- `terraform providers schema -json` は `terraform validate` と同じく provider を起動する。Claude Code のサンドボックス内では provider の起動が `socket: operation not permitted` で失敗するため、サンドボックスの除外設定に加えたコマンドの形でしか実行できない。除外設定は単独のコマンドの形にしか一致せず、出力のリダイレクト（`> <file>`）・パイプ（`| jq`）・`cd <dir> &&` を付けた形はサンドボックス内で実行されて provider の起動に失敗する。また、このコマンドは schema を取得するディレクトリで実行する必要があり（`-chdir` を付けた形も除外設定の形と異なる）、出力は数百 KB になる（provider `integrations/github` v6.12.1 で約 215 KB）。このため Claude Code のメインセッションでは、`cd .terraform/deprecation-schema` と `mise exec -- terraform providers schema -json` を、それぞれ単独のコマンドとして順に実行する（`init` までは下の起動例と同じ）。出力は大きいため Claude Code がファイルへ退避し、結果にそのパスを示すので、下の起動例の `/tmp/tf-schema.json` の代わりにそのファイルへ jq をかける（2026-09-29 に実測し、退避されたファイルが schema の JSON そのものであることを確かめた）。サンドボックスの外（利用者の端末）で実行する場合は、下の起動例のとおりリダイレクトしてよい。
+- 抽出の出力（JSON）を `## 非推奨スキーマ一覧` にそのまま貼る。渡さない場合は、観点 9 は validate 経路だけで評価され、値が validate の時点で決まらない属性の非推奨は、警告が出ない場合は検出できない（reviewer 定義の観点 9 の「判定の限界」）。validate 出力も非推奨スキーマ一覧も渡さない場合は、観点 9 は未評価になる。
+
+**起動例（Claude Code 内）**: `terraform-design-reviewer` は `Bash` 権限を持たないため、呼び出し側で事前に `git diff`・validate 出力・非推奨スキーマ一覧を取得してプロンプトに含める。
 
 ```bash
 # 呼び出し側で事前に取得（PR 適用後の作業ディレクトリで実行する）
@@ -262,6 +270,21 @@ git diff main...HEAD -- '*.tf' '*.tfvars' > /tmp/tf-diff.txt
 terraform init -backend=false   # 未初期化の場合のみ
 export GITHUB_APP_ID=1 GITHUB_APP_INSTALLATION_ID=1 GITHUB_APP_PEM_FILE=placeholder   # ダミー値でよい
 terraform validate -json > /tmp/tf-validate.json
+
+# 非推奨スキーマ一覧（リポジトリのルートで実行する）
+git diff --name-only --diff-filter=d main...HEAD -- '*.tf' \
+  | xargs -r sed -nE 's/^[[:space:]]*(resource|data)[[:space:]]+"([^"]+)".*/\1 \2/p' \
+  | sort -u > /tmp/tf-types.txt
+mkdir -p .terraform/deprecation-schema   # .terraform/ は追跡対象外
+cp .terraform.lock.hcl .terraform/deprecation-schema/
+printf 'terraform {\n  required_providers {\n    github = {\n      source = "integrations/github"\n    }\n  }\n}\n' > .terraform/deprecation-schema/main.tf
+cd .terraform/deprecation-schema
+terraform init -backend=false -lockfile=readonly -input=false
+terraform providers schema -json > /tmp/tf-schema.json
+cd -
+jq --rawfile types /tmp/tf-types.txt \
+  -f docs/agents/terraform-design-reviewer/extract-deprecations.jq \
+  /tmp/tf-schema.json > /tmp/tf-deprecations.json
 ```
 
 ```
@@ -292,6 +315,9 @@ Agent(
     ## validate 出力（任意）
     実行ディレクトリ: <リポジトリのルート以外で実行した場合だけ書く。ルートで実行した場合はこの行を省く>
     <`/tmp/tf-validate.json` の中身（JSON）をそのまま貼り付け。未提供なら空欄>
+
+    ## 非推奨スキーマ一覧（任意）
+    <`/tmp/tf-deprecations.json` の中身（JSON）をそのまま貼り付け。未提供なら空欄>
 
     ## 要件情報
     <Issue/PR 本文の要点>
