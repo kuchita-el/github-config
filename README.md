@@ -203,8 +203,9 @@ terraform validate     # 構文・スキーマ検証
    Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.
    # public リポでタグ Ruleset が無い場合: 1 to import, 1 to add, 0 to change, 0 to destroy.
    ```
-6. no-op を確認できたら `terraform apply`（state に取り込むだけ＝実 Ruleset は無変更で安全に管理下入り）。
-7. 取り込み完了後、追加した `import {}` ブロックを削除する（state に入った後は不要）。`plan` が
+6. no-op を確認できたら、`import {}` ブロックを含む PR を main へマージする。マージで起動した HCP の run が
+   plan から apply まで自動で進み（Auto apply。下記「運用フロー」）、state に取り込む（取り込むだけ＝実 Ruleset は無変更で安全に管理下入り）。
+7. 取り込み完了後、追加した `import {}` ブロックを削除する PR を別に出す（state に入った後は不要）。その PR の Speculative Plan が
    `No changes` のままであることを確認。
 
 ---
@@ -216,7 +217,7 @@ terraform fmt          # 整形
 terraform validate     # 検証
 terraform plan         # （任意）手戻り防止の自己確認
 # → PR 起票後、HCP Speculative Plan が GitHub Checks に自動表示される（強制ゲート）
-terraform apply        # HCP UI で plan 結果を確認後、適用
+# → PR を main へマージすると、HCP が plan から apply まで自動で実行する（Auto apply）
 ```
 
 ### Speculative Plan の自動起動（VCS 連携）
@@ -226,7 +227,9 @@ HCP Workspace は `kuchita-el/github-config` リポに VCS 連携済みのため
 - Plan 結果（成功・失敗・差分有無）は PR の "Checks" タブに表示される
 - マージ前の振る舞い確認はこの自動 Plan を正とする
 - ローカルの `terraform plan` は**任意習慣**（開発者の自己確認・手戻り防止用）であり、強制ゲートではない
-- Apply は自動化されない（Manual apply）。HCP UI で `Plan succeeded` を確認後、`Start apply` を押す
+- PR で起動する Speculative Plan は apply されない（plan のみ）
+- HCP Workspace `github-config` の Apply Method は **Auto apply**。main への push とマージで起動した run は、plan が成功し差分があるとき、人手の操作なしに apply まで進む
+- VCS 連携中の Workspace では CLI からのリモート apply（`terraform apply`）は実行できない。変更は main へのマージで適用する
 
 Claude Code セッション内では `.tf` への `Edit` / `Write` / `MultiEdit` 直後に `terraform fmt`（`.claude/hooks/terraform-fmt.sh`）と `tflint`（`.claude/hooks/tflint.sh`）が PostToolUse hook で自動実行される。`tflint` は `.tflint.hcl` の `terraform-linters/tflint-ruleset-terraform` `recommended` プリセットで対象ファイルの違反のみを stderr に出力する（違反検知時もセッションはブロックされない）。手動 `terraform fmt` / `tflint` も引き続き有効。
 
@@ -317,7 +320,7 @@ Agent(
   1. 取り込みの前に、対象リポのワークフローが参照する action を SHA 参照（`uses: <owner>/<repo>@<40桁の SHA> # <バージョン>`）へ固定する。複合 action は内部の参照も SHA で固定された版を使う（[設計仕様書](docs/design/terraform-structure.md) §8「actions_permissions」）。
   2. `terraform.tfvars` の `repositories` にリポ名を追加する。`visibility` と `profile`（[設計仕様書](docs/design/terraform-structure.md) §7、必須・既定値なし）を直下に宣言し、判定根拠をコメントで残す。リポ固有値は設定種別名のキーの下に入れ子で書く（CI があれば `branch_protection = { status_check_contexts = [...], status_check_integration_id = 15368 }`、説明文があれば `repository = { description = "..." }`、`actions/*`・`github/*` 以外の action を使うなら `actions_permissions = { patterns_allowed = ["<owner>/<repo>@*"] }`）。値の無い設定種別のキーは省略する（設計仕様書 §5）。全リポ共通値（`local.<concern>_preset`）はここに書かない。
   3. Ruleset 以外の6リソースの `import {}` ブロックを追加し、`terraform plan` を実行する。**public リポの場合**、branch_protection Ruleset と tag_protection Ruleset の計2件が新規作成されるため `6 to import, 2 to add, 0 to change, 0 to destroy`（Ruleset の作成のみ）になることを確認する（他リポが recreate されないこと）。**private リポの場合**は Ruleset が対象外のため `6 to import, 0 to add, 0 to change, 0 to destroy` になることを確認する。`vulnerability_alerts` / `dependabot_security_updates` は visibility を問わず import 対象になるが、`security_and_analysis`（`repository.tf`、既存 `github_repository.this` への属性追加）は private リポでは dynamic ブロックにより送られないため import 対象にならず差分にも現れない（[設計仕様書](docs/design/terraform-structure.md) §6）。実値が全リポ共通値・類型決定値と食い違う場合は、import より前に「既存リポの取り込み（import）」手順1で [設計仕様書](docs/design/terraform-structure.md) §4「取り込み時の食い違い」に従って振り分ける。
-  4. `terraform apply` の後、`import {}` ブロックを削除し、`plan` が `No changes` のままであることを確認する。
+  4. `import {}` ブロックを含む PR を main へマージする（HCP が plan から apply まで自動で進め、state に取り込む）。その後、`import {}` ブロックを削除する PR を別に出し、その Speculative Plan が `No changes` のままであることを確認する。
 
 > `for_each` のキーはリポ名（不変）。リポ追加で既存リソースが destroy/recreate されることはない。
 
