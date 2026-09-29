@@ -64,9 +64,9 @@ locals {
 
   # ---------------------------------------------------------------------------
   # Branch-protection targets: public repositories only, since the GitHub Free
-  # plan allows Rulesets on public repositories only (ADR 0004 §6). Profile is
-  # not used to narrow this target set; every profile still gets a branch
-  # protection ruleset once it is public.
+  # plan allows Rulesets on public repositories only (terraform-structure.md
+  # §6). Profile is not used to narrow this target set; every profile still
+  # gets a branch protection ruleset once it is public.
   # ---------------------------------------------------------------------------
   branch_protection_targets = {
     for repo, cfg in var.repositories : repo => cfg if cfg.visibility == "public"

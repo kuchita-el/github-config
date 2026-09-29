@@ -55,10 +55,10 @@ locals {
 
   # ---------------------------------------------------------------------------
   # Tag-protection targets: public repositories only, since the GitHub Free
-  # plan allows Rulesets on public repositories only (ADR 0004 §6). Profile is
-  # not used to narrow this target set; disabled profiles are represented as
-  # enforcement = "disabled" instances instead (terraform-structure.md §8, Issue
-  # #74 Q2).
+  # plan allows Rulesets on public repositories only (terraform-structure.md
+  # §6). Profile is not used to narrow this target set; disabled profiles are
+  # represented as enforcement = "disabled" instances instead
+  # (terraform-structure.md §8, Issue #74 Q2).
   # ---------------------------------------------------------------------------
   tag_protection_targets = {
     for repo, cfg in var.repositories : repo => cfg if cfg.visibility == "public"
