@@ -82,6 +82,21 @@ repositories = {
     }
   }
 
+  # agent-config: Claude Code・Codex の個人設定（#117）。Ruleset の無い新規リポとして import した。
+  # CI が無いため branch_protection のキーは持たない。
+  #
+  # profile = local_config（terraform-structure.md §7）: 公開されているが、読み手が参照・取り込みの対象に
+  # しない設定集（§7 の境界例）。変更が自動で届く先は所有者の端末だけで、読み手による写し取りは
+  # 一回きりで変更を追いかけない。
+  "agent-config" = {
+    visibility = "public"
+    profile    = "local_config"
+
+    repository = {
+      description = "Claude Code と Codex の個人設定（読んで参考にする資料）"
+    }
+  }
+
   # work-abstraction: private リポ（#4）。ビジネスワークフローの Web アプリ。
   #
   # profile = app（terraform-structure.md §7）: 実行アプリケーションのソースを持ち、利用者は ref で参照も
