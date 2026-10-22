@@ -1,0 +1,36 @@
+# PR の内容: リポ固有値に has_downloads を加え、repository.tf の github_repository.this へ
+# each.value 経由で渡す（値は terraform.tfvars の repositories から決まる）。
+
+diff --git a/repository.tf b/repository.tf
+index 47a9a61..24939e6 100644
+--- a/repository.tf
++++ b/repository.tf
+@@ -75,10 +75,11 @@ resource "github_repository" "this" {
+   # Repo-specific values. null archived falls back to the provider default
+   # (false); null description / homepage_url mean none; an empty topics set
+   # means no topics.
+-  archived     = each.value.repository.archived
+-  description  = each.value.repository.description
+-  homepage_url = each.value.repository.homepage_url
+-  topics       = each.value.repository.topics
++  archived      = each.value.repository.archived
++  description   = each.value.repository.description
++  homepage_url  = each.value.repository.homepage_url
++  topics        = each.value.repository.topics
++  has_downloads = each.value.repository.has_downloads
+ 
+   # All-repository common values.
+   allow_auto_merge       = local.repository_preset.allow_auto_merge
+diff --git a/variables.tf b/variables.tf
+index 2623c14..244ae1b 100644
+--- a/variables.tf
++++ b/variables.tf
+@@ -46,6 +46,8 @@ variable "repositories" {
+       # リポジトリの topics（ADR 0001 §2: github_repository.topics 属性で管理する）。
+       # 空リストは topics なし。英小文字・数字・ハイフンのみ、50 文字以内（provider の検証）。
+       topics = optional(set(string), [])
++      # GitHub の Downloads 機能を有効にするか。null は provider の既定値。
++      has_downloads = optional(bool)
+     }), {})
+ 
+     # github_repository_ruleset.branch_protection（branch_protection.tf）のリポ固有値。

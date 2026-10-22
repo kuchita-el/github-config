@@ -1,0 +1,51 @@
+{
+  "checked": [
+    {
+      "kind": "resource",
+      "type": "github_branch_default"
+    },
+    {
+      "kind": "resource",
+      "type": "github_repository"
+    }
+  ],
+  "not_found": [],
+  "deprecated": [
+    {
+      "kind": "resource",
+      "type": "github_repository",
+      "target": "attribute",
+      "path": "default_branch"
+    },
+    {
+      "kind": "resource",
+      "type": "github_repository",
+      "target": "attribute",
+      "path": "has_downloads"
+    },
+    {
+      "kind": "resource",
+      "type": "github_repository",
+      "target": "attribute",
+      "path": "ignore_vulnerability_alerts_during_read"
+    },
+    {
+      "kind": "resource",
+      "type": "github_repository",
+      "target": "attribute",
+      "path": "private"
+    },
+    {
+      "kind": "resource",
+      "type": "github_repository",
+      "target": "attribute",
+      "path": "vulnerability_alerts"
+    },
+    {
+      "kind": "resource",
+      "type": "github_repository",
+      "target": "block",
+      "path": "pages"
+    }
+  ]
+}

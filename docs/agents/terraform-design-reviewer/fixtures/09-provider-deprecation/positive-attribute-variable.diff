@@ -1,0 +1,29 @@
+# PR の内容: sandbox_downloads.tf を新規追加し、input variable の値を has_downloads に渡す
+# github_repository.sandbox_downloads を定義する。
+
+diff --git a/sandbox_downloads.tf b/sandbox_downloads.tf
+new file mode 100644
+index 0000000..ffde236
+--- /dev/null
++++ b/sandbox_downloads.tf
+@@ -0,0 +1,20 @@
++variable "sandbox_has_downloads" {
++  description = "Whether the Downloads feature is enabled on the sandbox repository."
++  type        = bool
++  default     = true
++}
++
++resource "github_repository" "sandbox_downloads" {
++  name = "sandbox-downloads"
++
++  visibility = "private"
++
++  has_downloads = var.sandbox_has_downloads
++
++  lifecycle {
++    ignore_changes = [
++      visibility,
++      archived,
++    ]
++  }
++}
