@@ -119,6 +119,10 @@ repositories = {
   "budget-baker" = {
     visibility = "private"
     profile    = "app"
+
+    actions_permissions = {
+      patterns_allowed = ["pnpm/action-setup@*"] # ワークフローが使う外部 action
+    }
   }
 
   # cody: private リポ（#4）。オンラインでコードを書く Web アプリ。
