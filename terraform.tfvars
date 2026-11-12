@@ -16,6 +16,10 @@ repositories = {
   # profile = app（terraform-structure.md §7）: TypeScript 製の実行アプリケーション（確率計算ツール）で、
   # main への push を CI 成功後に GitHub Pages へ静的サイトとしてデプロイする。利用者は
   # デプロイ済みの Web ページを訪れるだけで、リポジトリを ref で参照も複製もしない。
+  #
+  # 2026-11-12 に同名で作り直した（リポ ID が変わった）。旧リポジトリは管理対象外。
+  # リポ名を ID とする資源は新リポジトリを指し、Ruleset は ID が旧リポジトリ側に残るため
+  # 新リポジトリへ作り直す。
   gachanuma = {
     visibility = "public"
     profile    = "app"
