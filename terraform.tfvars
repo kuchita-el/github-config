@@ -111,7 +111,7 @@ repositories = {
     profile    = "app"
 
     actions_permissions = {
-      patterns_allowed = ["pnpm/action-setup@*"] # ワークフローが使う外部 action
+      patterns_allowed = ["pnpm/action-setup@*", "dependabot/fetch-metadata@*"] # ワークフローが使う外部 action
     }
   }
 
